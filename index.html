@@ -116,6 +116,32 @@
             font-family: inherit; cursor: pointer; max-width: 160px;
         }
         .agent-select:focus { outline: none; border-color: var(--accent-cyan); box-shadow: var(--glow-cyan); }
+
+        /* Wallet badge in header */
+        .wallet-badge {
+            display: flex; align-items: center; gap: 0.4rem;
+            background: var(--bg-raised); border: 1px solid var(--border-bright);
+            border-radius: var(--radius); padding: 0.3rem 0.6rem;
+            font-size: 0.75rem; cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .wallet-badge:hover { border-color: var(--accent-cyan); }
+        .wallet-badge__dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
+        }
+        .wallet-badge__addr {
+            color: var(--accent-green); font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 0.02em;
+        }
+        .wallet-badge--disconnected .wallet-badge__dot {
+            background: var(--text-tertiary); box-shadow: none;
+        }
+        .wallet-badge--disconnected .wallet-badge__addr {
+            color: var(--text-tertiary);
+        }
+
         .settings-btn {
             background: transparent; border: 1px solid var(--border);
             color: var(--text-secondary); border-radius: var(--radius);
@@ -211,10 +237,10 @@
         }
         .tool__name::-webkit-details-marker { display: none; }
         .tool__name::before {
-            content: '▸ '; font-size: 0.7rem;
+            content: '\25B8 '; font-size: 0.7rem;
         }
         .tool[open] .tool__name::before {
-            content: '▾ ';
+            content: '\25BE ';
         }
         .tool__name:hover { color: #f0f6fc; }
         .tool__input {
@@ -395,7 +421,7 @@
             background: var(--accent-amber-dim);
         }
 
-        /* ── Settings modal ── */
+        /* ── Modal (shared) ── */
         .modal-backdrop {
             position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px); z-index: 1000;
@@ -411,16 +437,23 @@
             color: var(--accent-cyan); font-size: 1.2rem; margin-bottom: 1rem;
             text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
         }
+        .modal h3 {
+            color: var(--text-primary); font-size: 0.95rem; margin-bottom: 0.5rem;
+            margin-top: 1rem;
+        }
         .modal label {
             display: block; color: var(--text-secondary); font-size: 0.85rem;
             margin-bottom: 0.3rem; margin-top: 0.75rem;
         }
-        .modal input[type="text"], .modal input[type="url"] {
+        .modal input[type="text"], .modal input[type="url"], .modal input[type="password"], .modal textarea {
             width: 100%; background: var(--bg-input); color: var(--text-primary);
             border: 1px solid var(--border-bright); border-radius: var(--radius);
             padding: 0.55rem 0.75rem; font-size: 0.9rem; font-family: inherit;
         }
-        .modal input:focus { outline: none; border-color: var(--accent-cyan); box-shadow: var(--glow-cyan); }
+        .modal textarea {
+            min-height: 4.5rem; resize: vertical; line-height: 1.6;
+        }
+        .modal input:focus, .modal textarea:focus { outline: none; border-color: var(--accent-cyan); box-shadow: var(--glow-cyan); }
         .modal__actions {
             display: flex; gap: 0.5rem; margin-top: 1.25rem; justify-content: flex-end;
         }
@@ -435,13 +468,101 @@
             border: 1px solid var(--accent-cyan);
         }
         .modal__btn--primary:hover { background: rgba(0, 229, 255, 0.25); }
+        .modal__btn--green {
+            background: var(--accent-green-dim); color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+        .modal__btn--green:hover { background: rgba(0, 255, 136, 0.25); }
         .modal__btn--secondary {
             background: transparent; color: var(--text-secondary);
             border: 1px solid var(--border);
         }
         .modal__btn--secondary:hover { background: var(--bg-hover); }
+        .modal__btn--danger {
+            background: transparent; color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+        .modal__btn--danger:hover { background: rgba(255, 51, 85, 0.1); }
         .modal__hint {
             font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;
+        }
+        .modal__divider {
+            border: none; border-top: 1px solid var(--border);
+            margin: 1rem 0;
+        }
+        .modal__error {
+            color: var(--accent-red); font-size: 0.8rem; margin-top: 0.4rem;
+            display: none;
+        }
+        .modal__error.visible { display: block; }
+        .modal__success {
+            color: var(--accent-green); font-size: 0.8rem; margin-top: 0.4rem;
+            display: none;
+        }
+        .modal__success.visible { display: block; }
+
+        /* Mnemonic display */
+        .mnemonic-display {
+            background: var(--bg-input); border: 1px solid var(--border-bright);
+            border-radius: var(--radius); padding: 0.75rem;
+            font-family: var(--font-mono); font-size: 0.85rem;
+            color: var(--accent-green); line-height: 1.8;
+            word-spacing: 0.5rem; user-select: all;
+            margin: 0.5rem 0;
+        }
+        .mnemonic-display__warning {
+            color: var(--accent-red); font-size: 0.75rem;
+            margin-top: 0.4rem; font-weight: 700;
+        }
+
+        /* Wallet info section in wallet modal */
+        .wallet-info {
+            background: var(--bg-raised); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .wallet-info__row {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 0.2rem 0;
+            font-size: 0.8rem;
+        }
+        .wallet-info__label { color: var(--text-secondary); }
+        .wallet-info__value {
+            color: var(--text-primary); font-family: var(--font-mono);
+            font-size: 0.75rem; max-width: 200px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .wallet-info__value--green { color: var(--accent-green); }
+        .wallet-info__value--cyan { color: var(--accent-cyan); }
+
+        /* Tab switcher */
+        .tab-bar {
+            display: flex; gap: 0; margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab-bar__tab {
+            background: transparent; border: none;
+            color: var(--text-secondary); font-family: inherit;
+            font-size: 0.85rem; font-weight: 700;
+            padding: 0.5rem 1rem; cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .tab-bar__tab:hover { color: var(--text-primary); }
+        .tab-bar__tab.active {
+            color: var(--accent-cyan); border-bottom-color: var(--accent-cyan);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Checkbox */
+        .checkbox-row {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-top: 0.75rem; font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .checkbox-row input[type="checkbox"] {
+            accent-color: var(--accent-cyan);
         }
 
         /* ── Empty state ── */
@@ -489,6 +610,8 @@
             .msg { padding-right: 1.8rem; }
             .terminal__output { padding: 0.75rem; }
             .input-area { padding: 0.6rem 0.75rem; }
+            .wallet-badge__addr { display: none; }
+            .modal { width: 95%; padding: 1rem; }
         }
 
         /* ── Focus ── */
@@ -508,6 +631,10 @@
                 <div class="header__title">CorvidAgent</div>
             </div>
             <div class="header__controls">
+                <div class="wallet-badge wallet-badge--disconnected" id="walletBadge" title="Wallet">
+                    <div class="wallet-badge__dot"></div>
+                    <span class="wallet-badge__addr" id="walletBadgeAddr">Connect Wallet</span>
+                </div>
                 <select class="agent-select" id="agentSelect" aria-label="Select agent">
                     <option value="">Connecting...</option>
                 </select>
@@ -520,7 +647,7 @@
             <div class="terminal__output" id="output">
                 <div class="empty-state" id="emptyState">
                     <div class="empty-state__title">CorvidAgent</div>
-                    <div>Select an agent and start chatting.</div>
+                    <div>Connect your wallet and start chatting.</div>
                     <div style="font-size: 0.8rem;">
                         Type <code style="color: var(--accent-cyan); font-family: var(--font-mono); background: var(--bg-raised); padding: 1px 5px; border-radius: 3px;">/</code> for commands,
                         <code style="color: var(--accent-magenta); font-family: var(--font-mono); background: var(--bg-raised); padding: 1px 5px; border-radius: 3px;">@</code> to mention agents
@@ -547,6 +674,125 @@
         </div>
     </div>
 
+    <!-- Wallet modal -->
+    <div class="modal-backdrop" id="walletModal">
+        <div class="modal">
+            <h2>Wallet</h2>
+
+            <!-- Connected state -->
+            <div id="walletConnectedView" style="display:none;">
+                <div class="wallet-info">
+                    <div class="wallet-info__row">
+                        <span class="wallet-info__label">Address</span>
+                        <span class="wallet-info__value wallet-info__value--cyan" id="walletFullAddr" title="Click to copy" style="cursor:pointer;">--</span>
+                    </div>
+                    <div class="wallet-info__row">
+                        <span class="wallet-info__label">Network</span>
+                        <span class="wallet-info__value" id="walletNetwork">testnet</span>
+                    </div>
+                    <div class="wallet-info__row">
+                        <span class="wallet-info__label">Status</span>
+                        <span class="wallet-info__value wallet-info__value--green">Connected</span>
+                    </div>
+                </div>
+                <div class="modal__actions">
+                    <button class="modal__btn modal__btn--secondary" id="walletExportBtn">Export Mnemonic</button>
+                    <button class="modal__btn modal__btn--danger" id="walletDisconnectBtn">Disconnect</button>
+                    <button class="modal__btn modal__btn--primary" id="walletCloseBtn">Close</button>
+                </div>
+                <!-- Export area (hidden by default) -->
+                <div id="walletExportArea" style="display:none; margin-top:1rem;">
+                    <label for="walletExportPassword">Enter password to reveal mnemonic</label>
+                    <input type="password" id="walletExportPassword" placeholder="Password...">
+                    <div class="modal__actions" style="margin-top:0.5rem;">
+                        <button class="modal__btn modal__btn--secondary" id="walletExportRevealBtn">Reveal</button>
+                    </div>
+                    <div class="mnemonic-display" id="walletExportMnemonic" style="display:none;"></div>
+                    <div class="modal__error" id="walletExportError"></div>
+                </div>
+            </div>
+
+            <!-- Disconnected state -->
+            <div id="walletDisconnectedView">
+                <div class="tab-bar">
+                    <button class="tab-bar__tab active" data-tab="import">Import</button>
+                    <button class="tab-bar__tab" data-tab="generate">Generate</button>
+                </div>
+
+                <!-- Import tab -->
+                <div class="tab-content active" id="tab-import">
+                    <label for="walletMnemonic">25-word Mnemonic</label>
+                    <textarea id="walletMnemonic" placeholder="Enter your 25-word Algorand mnemonic..." spellcheck="false" autocomplete="off"></textarea>
+                    <div class="modal__hint">Your mnemonic never leaves this device. It's encrypted before storage.</div>
+
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="walletRemember" checked>
+                        <label for="walletRemember" style="margin:0;">Remember on this device</label>
+                    </div>
+
+                    <div id="walletPasswordRow" style="margin-top:0.5rem;">
+                        <label for="walletPassword">Encryption Password</label>
+                        <input type="password" id="walletPassword" placeholder="Password to encrypt mnemonic...">
+                        <div class="modal__hint">Used to encrypt your mnemonic in localStorage. Required for "remember me".</div>
+                    </div>
+
+                    <div class="modal__error" id="walletImportError"></div>
+                    <div class="modal__actions">
+                        <button class="modal__btn modal__btn--secondary" id="walletImportCancel">Cancel</button>
+                        <button class="modal__btn modal__btn--primary" id="walletImportBtn">Connect</button>
+                    </div>
+                </div>
+
+                <!-- Generate tab -->
+                <div class="tab-content" id="tab-generate">
+                    <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+                        Generate a new Algorand wallet. Save your mnemonic somewhere safe!
+                    </p>
+                    <button class="modal__btn modal__btn--green" id="walletGenerateBtn">Generate New Wallet</button>
+                    <div id="walletGenerateResult" style="display:none; margin-top:1rem;">
+                        <label>Your Address</label>
+                        <div class="wallet-info" style="margin:0.3rem 0;">
+                            <div class="wallet-info__row">
+                                <span class="wallet-info__value wallet-info__value--cyan" id="walletGenAddr" style="max-width:100%; font-size:0.7rem;">--</span>
+                            </div>
+                        </div>
+                        <label>Your Mnemonic (save this!)</label>
+                        <div class="mnemonic-display" id="walletGenMnemonic">--</div>
+                        <div class="mnemonic-display__warning">Write this down! You cannot recover it later.</div>
+
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="walletGenSaved">
+                            <label for="walletGenSaved" style="margin:0;">I have saved my mnemonic</label>
+                        </div>
+
+                        <label for="walletGenPassword" style="margin-top:0.5rem;">Encryption Password</label>
+                        <input type="password" id="walletGenPassword" placeholder="Password to encrypt mnemonic...">
+
+                        <div class="modal__error" id="walletGenError"></div>
+                        <div class="modal__actions">
+                            <button class="modal__btn modal__btn--primary" id="walletGenConnectBtn" disabled>Connect with this wallet</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unlock tab (shown when stored session exists) -->
+                <div id="walletUnlockView" style="display:none;">
+                    <hr class="modal__divider">
+                    <h3>Stored Wallet Found</h3>
+                    <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:0.5rem;">
+                        You have a saved wallet. Enter your password to unlock it.
+                    </p>
+                    <input type="password" id="walletUnlockPassword" placeholder="Password...">
+                    <div class="modal__error" id="walletUnlockError"></div>
+                    <div class="modal__actions" style="margin-top:0.5rem;">
+                        <button class="modal__btn modal__btn--secondary" id="walletForgetBtn">Forget</button>
+                        <button class="modal__btn modal__btn--primary" id="walletUnlockBtn">Unlock</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Settings modal -->
     <div class="modal-backdrop" id="settingsModal">
         <div class="modal">
@@ -566,9 +812,190 @@
         </div>
     </div>
 
+    <!-- algosdk from CDN -->
+    <script src="https://unpkg.com/algosdk@3.2.0/dist/browser/algosdk.min.js"></script>
+
     <script>
     (function() {
         'use strict';
+
+        // ════════════════════════════════════════════════════════
+        // Storage Crypto - AES-GCM encryption for mnemonic storage
+        // Uses Web Crypto API — no external deps
+        // ════════════════════════════════════════════════════════
+
+        const PBKDF2_ITERATIONS = 100_000;
+        const SALT_SIZE = 16;
+        const IV_SIZE = 12;
+        const PERSIST_KEY = 'corvid_wallet_persist';
+        const SESSION_KEY = 'corvid_wallet_session';
+
+        let sessionCryptoKey = null;
+
+        async function deriveAesKey(password, salt) {
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits', 'deriveKey']
+            );
+            return crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: salt.buffer, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptWithPassword(plaintext, password) {
+            const salt = crypto.getRandomValues(new Uint8Array(SALT_SIZE));
+            const iv = crypto.getRandomValues(new Uint8Array(IV_SIZE));
+            const key = await deriveAesKey(password, salt);
+            const ciphertext = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: iv.buffer }, key, new TextEncoder().encode(plaintext)
+            );
+            return JSON.stringify({
+                salt: uint8ToBase64(salt),
+                iv: uint8ToBase64(iv),
+                ciphertext: uint8ToBase64(new Uint8Array(ciphertext)),
+            });
+        }
+
+        async function decryptWithPassword(encrypted, password) {
+            try {
+                const d = JSON.parse(encrypted);
+                const salt = base64ToUint8(d.salt), iv = base64ToUint8(d.iv), ct = base64ToUint8(d.ciphertext);
+                const key = await deriveAesKey(password, salt);
+                const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv.buffer }, key, ct.buffer);
+                return new TextDecoder().decode(pt);
+            } catch { return null; }
+        }
+
+        function isEncryptedData(data) {
+            try { const p = JSON.parse(data); return !!(p.salt && p.iv && p.ciphertext); } catch { return false; }
+        }
+
+        async function getSessionKey() {
+            if (!sessionCryptoKey) {
+                sessionCryptoKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+            }
+            return sessionCryptoKey;
+        }
+
+        async function encryptForSession(plaintext) {
+            const iv = crypto.getRandomValues(new Uint8Array(IV_SIZE));
+            const key = await getSessionKey();
+            const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv.buffer }, key, new TextEncoder().encode(plaintext));
+            return JSON.stringify({ iv: uint8ToBase64(iv), ciphertext: uint8ToBase64(new Uint8Array(ct)) });
+        }
+
+        async function decryptFromSession(encrypted) {
+            try {
+                const d = JSON.parse(encrypted);
+                const iv = base64ToUint8(d.iv), ct = base64ToUint8(d.ciphertext);
+                const key = await getSessionKey();
+                const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv.buffer }, key, ct.buffer);
+                return new TextDecoder().decode(pt);
+            } catch { return null; }
+        }
+
+        function uint8ToBase64(bytes) {
+            let b = ''; for (let i = 0; i < bytes.length; i++) b += String.fromCharCode(bytes[i]);
+            return btoa(b);
+        }
+        function base64ToUint8(b64) {
+            const b = atob(b64); const u = new Uint8Array(b.length);
+            for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+            return u;
+        }
+
+        // ════════════════════════════════════════════════════════
+        // Wallet Manager
+        // ════════════════════════════════════════════════════════
+
+        const wallet = {
+            address: null,
+            mnemonic: null,     // kept in memory for session, cleared on disconnect
+            password: null,     // cached password for export
+
+            isConnected() { return !!this.address; },
+
+            connect(mnemonic) {
+                try {
+                    const account = algosdk.mnemonicToSecretKey(mnemonic);
+                    this.address = account.addr.toString();
+                    this.mnemonic = mnemonic;
+                    return true;
+                } catch (e) {
+                    console.error('Invalid mnemonic:', e);
+                    return false;
+                }
+            },
+
+            disconnect() {
+                this.address = null;
+                this.mnemonic = null;
+                this.password = null;
+                sessionStorage.removeItem(SESSION_KEY);
+                localStorage.removeItem(PERSIST_KEY);
+            },
+
+            async saveRemembered(mnemonic, password) {
+                const encrypted = await encryptWithPassword(mnemonic, password);
+                localStorage.setItem(PERSIST_KEY, encrypted);
+                sessionStorage.removeItem(SESSION_KEY);
+                this.password = password;
+            },
+
+            async saveSession(mnemonic) {
+                const encrypted = await encryptForSession(mnemonic);
+                sessionStorage.setItem(SESSION_KEY, encrypted);
+                localStorage.removeItem(PERSIST_KEY);
+                this.password = null;
+            },
+
+            hasStoredWallet() {
+                const stored = localStorage.getItem(PERSIST_KEY);
+                return stored !== null && isEncryptedData(stored);
+            },
+
+            async unlockWithPassword(password) {
+                const stored = localStorage.getItem(PERSIST_KEY);
+                if (!stored) return false;
+                const mnemonic = await decryptWithPassword(stored, password);
+                if (!mnemonic) return false;
+                if (!this.connect(mnemonic)) return false;
+                // Also cache in session
+                const sessionEnc = await encryptForSession(mnemonic);
+                sessionStorage.setItem(SESSION_KEY, sessionEnc);
+                this.password = password;
+                return true;
+            },
+
+            async restoreSession() {
+                const encrypted = sessionStorage.getItem(SESSION_KEY);
+                if (!encrypted) return false;
+                try {
+                    const mnemonic = await decryptFromSession(encrypted);
+                    if (!mnemonic) { sessionStorage.removeItem(SESSION_KEY); return false; }
+                    return this.connect(mnemonic);
+                } catch {
+                    sessionStorage.removeItem(SESSION_KEY);
+                    return false;
+                }
+            },
+
+            generateNew() {
+                const account = algosdk.generateAccount();
+                const mnemonic = algosdk.secretKeyToMnemonic(account.sk);
+                return { address: account.addr.toString(), mnemonic };
+            },
+
+            validateMnemonic(m) {
+                try { algosdk.mnemonicToSecretKey(m); return true; } catch { return false; }
+            },
+
+            shortAddress() {
+                if (!this.address) return '';
+                return this.address.slice(0, 6) + '...' + this.address.slice(-4);
+            },
+        };
 
         // ── Command definitions (synced from corvid-agent/shared/command-defs.ts) ──
         const COMMANDS = [
@@ -595,7 +1022,7 @@
         let streamBuffer = '';
         let selectedIdx = -1;
         let filteredItems = [];
-        let autocompleteTrigger = null; // 'command' | 'agent' | null
+        let autocompleteTrigger = null;
         let reconnectTimer = null;
         let reconnectDelay = 1000;
         let agentNames = [];
@@ -616,6 +1043,42 @@
         const commandHints = document.getElementById('commandHints');
         const helpBtn = document.getElementById('helpBtn');
 
+        // Wallet DOM refs
+        const walletBadge = document.getElementById('walletBadge');
+        const walletBadgeAddr = document.getElementById('walletBadgeAddr');
+        const walletModal = document.getElementById('walletModal');
+        const walletConnectedView = document.getElementById('walletConnectedView');
+        const walletDisconnectedView = document.getElementById('walletDisconnectedView');
+        const walletFullAddr = document.getElementById('walletFullAddr');
+        const walletMnemonicInput = document.getElementById('walletMnemonic');
+        const walletRemember = document.getElementById('walletRemember');
+        const walletPasswordRow = document.getElementById('walletPasswordRow');
+        const walletPasswordInput = document.getElementById('walletPassword');
+        const walletImportError = document.getElementById('walletImportError');
+        const walletImportBtn = document.getElementById('walletImportBtn');
+        const walletImportCancel = document.getElementById('walletImportCancel');
+        const walletGenBtn = document.getElementById('walletGenerateBtn');
+        const walletGenResult = document.getElementById('walletGenerateResult');
+        const walletGenAddr = document.getElementById('walletGenAddr');
+        const walletGenMnemonic = document.getElementById('walletGenMnemonic');
+        const walletGenSaved = document.getElementById('walletGenSaved');
+        const walletGenPassword = document.getElementById('walletGenPassword');
+        const walletGenError = document.getElementById('walletGenError');
+        const walletGenConnectBtn = document.getElementById('walletGenConnectBtn');
+        const walletCloseBtn = document.getElementById('walletCloseBtn');
+        const walletDisconnectBtn = document.getElementById('walletDisconnectBtn');
+        const walletExportBtn = document.getElementById('walletExportBtn');
+        const walletExportArea = document.getElementById('walletExportArea');
+        const walletExportPassword = document.getElementById('walletExportPassword');
+        const walletExportRevealBtn = document.getElementById('walletExportRevealBtn');
+        const walletExportMnemonic = document.getElementById('walletExportMnemonic');
+        const walletExportError = document.getElementById('walletExportError');
+        const walletUnlockView = document.getElementById('walletUnlockView');
+        const walletUnlockPassword = document.getElementById('walletUnlockPassword');
+        const walletUnlockError = document.getElementById('walletUnlockError');
+        const walletUnlockBtn = document.getElementById('walletUnlockBtn');
+        const walletForgetBtn = document.getElementById('walletForgetBtn');
+
         // ── Settings persistence ──
         function getServerUrl() { return localStorage.getItem('corvid_ws_url') || ''; }
         function getApiUrl() { return localStorage.getItem('corvid_api_url') || ''; }
@@ -629,6 +1092,234 @@
                 const proto = u.protocol === 'wss:' ? 'https:' : 'http:';
                 return `${proto}//${u.host}`;
             } catch { return ''; }
+        }
+
+        // ════════════════════════════════════════════════════════
+        // Wallet UI
+        // ════════════════════════════════════════════════════════
+
+        function updateWalletUI() {
+            if (wallet.isConnected()) {
+                walletBadge.classList.remove('wallet-badge--disconnected');
+                walletBadgeAddr.textContent = wallet.shortAddress();
+                walletConnectedView.style.display = 'block';
+                walletDisconnectedView.style.display = 'none';
+                walletFullAddr.textContent = wallet.address;
+                walletFullAddr.title = wallet.address + ' (click to copy)';
+                walletExportArea.style.display = 'none';
+                walletExportMnemonic.style.display = 'none';
+            } else {
+                walletBadge.classList.add('wallet-badge--disconnected');
+                walletBadgeAddr.textContent = 'Connect Wallet';
+                walletConnectedView.style.display = 'none';
+                walletDisconnectedView.style.display = 'block';
+            }
+            // Show unlock section if stored wallet exists
+            if (!wallet.isConnected() && wallet.hasStoredWallet()) {
+                walletUnlockView.style.display = 'block';
+            } else {
+                walletUnlockView.style.display = 'none';
+            }
+        }
+
+        // Open wallet modal
+        walletBadge.addEventListener('click', () => {
+            updateWalletUI();
+            walletModal.classList.add('visible');
+            if (!wallet.isConnected()) {
+                if (wallet.hasStoredWallet()) {
+                    walletUnlockPassword.focus();
+                } else {
+                    walletMnemonicInput.focus();
+                }
+            }
+        });
+
+        // Close modals on backdrop click
+        walletModal.addEventListener('click', (e) => {
+            if (e.target === walletModal) walletModal.classList.remove('visible');
+        });
+
+        // Tabs
+        document.querySelectorAll('.tab-bar__tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab-bar__tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Remember checkbox toggles password row
+        walletRemember.addEventListener('change', () => {
+            walletPasswordRow.style.display = walletRemember.checked ? 'block' : 'none';
+        });
+
+        // Copy address
+        walletFullAddr.addEventListener('click', () => {
+            navigator.clipboard.writeText(wallet.address);
+            walletFullAddr.textContent = 'Copied!';
+            setTimeout(() => walletFullAddr.textContent = wallet.address, 1500);
+        });
+
+        // Import wallet
+        walletImportBtn.addEventListener('click', async () => {
+            const mnemonic = walletMnemonicInput.value.trim().toLowerCase().replace(/\s+/g, ' ');
+            walletImportError.classList.remove('visible');
+
+            if (!mnemonic) {
+                showError(walletImportError, 'Please enter a mnemonic');
+                return;
+            }
+            if (!wallet.validateMnemonic(mnemonic)) {
+                showError(walletImportError, 'Invalid mnemonic. Must be 25 valid Algorand words.');
+                return;
+            }
+
+            const remember = walletRemember.checked;
+            const password = walletPasswordInput.value;
+
+            if (remember && !password) {
+                showError(walletImportError, 'Password required for "remember me"');
+                return;
+            }
+
+            if (!wallet.connect(mnemonic)) {
+                showError(walletImportError, 'Failed to derive account from mnemonic');
+                return;
+            }
+
+            if (remember) {
+                await wallet.saveRemembered(mnemonic, password);
+            } else {
+                await wallet.saveSession(mnemonic);
+            }
+
+            walletMnemonicInput.value = '';
+            walletPasswordInput.value = '';
+            updateWalletUI();
+            walletModal.classList.remove('visible');
+            onWalletConnected();
+        });
+
+        walletImportCancel.addEventListener('click', () => {
+            walletModal.classList.remove('visible');
+        });
+
+        // Generate wallet
+        let generatedMnemonic = null;
+        walletGenBtn.addEventListener('click', () => {
+            const { address, mnemonic } = wallet.generateNew();
+            generatedMnemonic = mnemonic;
+            walletGenAddr.textContent = address;
+            walletGenMnemonic.textContent = mnemonic;
+            walletGenResult.style.display = 'block';
+            walletGenSaved.checked = false;
+            walletGenConnectBtn.disabled = true;
+            walletGenPassword.value = '';
+        });
+
+        walletGenSaved.addEventListener('change', () => {
+            walletGenConnectBtn.disabled = !walletGenSaved.checked;
+        });
+
+        walletGenConnectBtn.addEventListener('click', async () => {
+            if (!generatedMnemonic) return;
+            walletGenError.classList.remove('visible');
+
+            const password = walletGenPassword.value;
+            if (!password) {
+                showError(walletGenError, 'Enter a password to encrypt your mnemonic');
+                return;
+            }
+
+            if (!wallet.connect(generatedMnemonic)) {
+                showError(walletGenError, 'Failed to create account');
+                return;
+            }
+
+            await wallet.saveRemembered(generatedMnemonic, password);
+            generatedMnemonic = null;
+            walletGenResult.style.display = 'none';
+            updateWalletUI();
+            walletModal.classList.remove('visible');
+            onWalletConnected();
+        });
+
+        // Connected state actions
+        walletCloseBtn.addEventListener('click', () => walletModal.classList.remove('visible'));
+
+        walletDisconnectBtn.addEventListener('click', () => {
+            wallet.disconnect();
+            updateWalletUI();
+            if (ws) { ws.close(); ws = null; }
+            appendStatus('Wallet disconnected');
+        });
+
+        walletExportBtn.addEventListener('click', () => {
+            walletExportArea.style.display = walletExportArea.style.display === 'none' ? 'block' : 'none';
+            walletExportMnemonic.style.display = 'none';
+            walletExportPassword.value = '';
+            walletExportError.classList.remove('visible');
+        });
+
+        walletExportRevealBtn.addEventListener('click', async () => {
+            walletExportError.classList.remove('visible');
+            // If mnemonic is in memory (session mode), show directly
+            if (wallet.mnemonic) {
+                walletExportMnemonic.textContent = wallet.mnemonic;
+                walletExportMnemonic.style.display = 'block';
+                return;
+            }
+            // Otherwise decrypt from storage
+            const password = walletExportPassword.value;
+            if (!password) {
+                showError(walletExportError, 'Enter your password');
+                return;
+            }
+            const stored = localStorage.getItem(PERSIST_KEY);
+            if (!stored) { showError(walletExportError, 'No stored wallet found'); return; }
+            const mnemonic = await decryptWithPassword(stored, password);
+            if (!mnemonic) { showError(walletExportError, 'Wrong password'); return; }
+            walletExportMnemonic.textContent = mnemonic;
+            walletExportMnemonic.style.display = 'block';
+        });
+
+        // Unlock stored wallet
+        walletUnlockBtn.addEventListener('click', async () => {
+            walletUnlockError.classList.remove('visible');
+            const password = walletUnlockPassword.value;
+            if (!password) { showError(walletUnlockError, 'Enter your password'); return; }
+            const ok = await wallet.unlockWithPassword(password);
+            if (!ok) { showError(walletUnlockError, 'Wrong password or corrupted data'); return; }
+            walletUnlockPassword.value = '';
+            updateWalletUI();
+            walletModal.classList.remove('visible');
+            onWalletConnected();
+        });
+
+        // Enter key on unlock password
+        walletUnlockPassword.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); walletUnlockBtn.click(); }
+        });
+
+        walletForgetBtn.addEventListener('click', () => {
+            localStorage.removeItem(PERSIST_KEY);
+            walletUnlockView.style.display = 'none';
+            walletUnlockPassword.value = '';
+        });
+
+        function showError(el, msg) {
+            el.textContent = msg;
+            el.classList.add('visible');
+        }
+
+        function onWalletConnected() {
+            appendStatus('Wallet connected: ' + wallet.shortAddress());
+            // Reconnect WebSocket with wallet identity
+            if (ws) { ws.close(); ws = null; }
+            connectWs();
+            loadAgents();
         }
 
         // ── Settings modal ──
@@ -716,7 +1407,7 @@
             currentAgentId = agentSelect.value;
         });
 
-        // Help button — show all commands
+        // Help button
         helpBtn.addEventListener('click', () => {
             if (autocompleteEl.classList.contains('visible')) {
                 hideAutocomplete();
@@ -738,18 +1429,14 @@
         function handleAutocomplete() {
             const value = messageInput.value;
 
-            // Command autocomplete
             if (value.startsWith('/') && !value.includes('\n')) {
                 const typed = value.split(/\s/)[0].toLowerCase();
                 if (!value.includes(' ')) {
                     filteredItems = COMMANDS
                         .filter(c => c.name.startsWith(typed))
                         .map(c => ({
-                            label: c.name,
-                            desc: c.desc,
-                            insertText: c.name + ' ',
-                            kind: 'command',
-                            privileged: c.privileged,
+                            label: c.name, desc: c.desc,
+                            insertText: c.name + ' ', kind: 'command', privileged: c.privileged,
                         }));
                     if (filteredItems.length > 0) {
                         selectedIdx = 0;
@@ -760,18 +1447,14 @@
                 }
             }
 
-            // Agent mention autocomplete (@)
             const atMatch = value.match(/@(\w*)$/);
             if (atMatch && agentNames.length > 0) {
                 const search = atMatch[1].toLowerCase();
                 filteredItems = agentNames
                     .filter(n => n.toLowerCase().startsWith(search))
                     .map(n => ({
-                        label: '@' + n,
-                        desc: 'Agent',
-                        insertText: '@' + n + ' ',
-                        kind: 'agent',
-                        privileged: false,
+                        label: '@' + n, desc: 'Agent',
+                        insertText: '@' + n + ' ', kind: 'agent', privileged: false,
                     }));
                 if (filteredItems.length > 0) {
                     selectedIdx = 0;
@@ -796,8 +1479,7 @@
             autocompleteEl.querySelectorAll('.autocomplete__item').forEach(el => {
                 el.addEventListener('mousedown', (e) => {
                     e.preventDefault();
-                    const idx = parseInt(el.dataset.index);
-                    applyAutocomplete(filteredItems[idx]);
+                    applyAutocomplete(filteredItems[parseInt(el.dataset.index)]);
                     messageInput.focus();
                 });
                 el.addEventListener('mouseenter', () => {
@@ -812,7 +1494,6 @@
         function applyAutocomplete(item) {
             if (!item) return;
             const value = messageInput.value;
-
             if (autocompleteTrigger === 'command') {
                 const rest = value.includes(' ') ? value.slice(value.indexOf(' ')) : '';
                 messageInput.value = item.insertText + rest.trimStart();
@@ -820,7 +1501,6 @@
                 const atIdx = value.lastIndexOf('@');
                 messageInput.value = value.slice(0, atIdx) + item.insertText;
             }
-
             hideAutocomplete();
             messageInput.focus();
         }
@@ -869,7 +1549,6 @@
                     agentSelect.appendChild(opt);
                 }
 
-                // Restore last selection
                 const savedAgentId = sessionStorage.getItem('corvid_chat_agentId');
                 if (savedAgentId && agents.find(a => a.id === savedAgentId)) {
                     agentSelect.value = savedAgentId;
@@ -895,13 +1574,21 @@
                 return;
             }
 
-            try { ws = new WebSocket(wsUrl); }
+            // Build WS URL with wallet address if connected
+            let connectUrl = wsUrl;
+            if (wallet.isConnected()) {
+                const sep = wsUrl.includes('?') ? '&' : '?';
+                connectUrl = wsUrl + sep + 'wallet=' + encodeURIComponent(wallet.address);
+            }
+
+            try { ws = new WebSocket(connectUrl); }
             catch { statusDot.className = 'header__status error'; scheduleReconnect(); return; }
 
             ws.addEventListener('open', () => {
                 statusDot.className = 'header__status connected';
                 reconnectDelay = 1000;
-                appendStatus('Connected');
+                const walletInfo = wallet.isConnected() ? ' as ' + wallet.shortAddress() : '';
+                appendStatus('Connected' + walletInfo);
             });
             ws.addEventListener('close', () => {
                 statusDot.className = 'header__status error';
@@ -943,7 +1630,6 @@
                     const textEl = streamingEl.querySelector('.msg__text');
                     renderMarkdown(textEl, streamBuffer);
 
-                    // Show or hide cursor
                     let cursorEl = streamingEl.querySelector('.cursor');
                     if (msg.done) {
                         if (cursorEl) cursorEl.remove();
@@ -967,7 +1653,6 @@
                     break;
 
                 case 'chat_session':
-                    // Could show session ID
                     break;
 
                 case 'algochat_message':
@@ -1019,7 +1704,6 @@
             hideAutocomplete();
             removeEmptyState();
 
-            // Save agent selection
             sessionStorage.setItem('corvid_chat_agentId', currentAgentId);
 
             const isCommand = content.startsWith('/');
@@ -1050,22 +1734,17 @@
             // Inline code
             html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // Tables (simple: | col | col | with header separator)
+            // Tables
             html = html.replace(/((?:^\|.+\|$\n?)+)/gm, (tableBlock) => {
                 const rows = tableBlock.trim().split('\n');
                 if (rows.length < 2) return tableBlock;
-
-                // Check for separator row (|---|---|)
                 const sepIdx = rows.findIndex(r => /^\|[\s\-:|]+\|$/.test(r));
                 if (sepIdx < 0) return tableBlock;
-
                 let table = '<table>';
-                // Header rows (before separator)
                 for (let i = 0; i < sepIdx; i++) {
                     const cells = rows[i].split('|').filter((_, ci, arr) => ci > 0 && ci < arr.length - 1);
                     table += '<tr>' + cells.map(c => `<th>${c.trim()}</th>`).join('') + '</tr>';
                 }
-                // Body rows (after separator)
                 for (let i = sepIdx + 1; i < rows.length; i++) {
                     if (!rows[i].trim()) continue;
                     const cells = rows[i].split('|').filter((_, ci, arr) => ci > 0 && ci < arr.length - 1);
@@ -1075,24 +1754,13 @@
                 return table;
             });
 
-            // Bold
             html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-
-            // Italic
             html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
-
-            // Headers
             html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
             html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
             html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-            // HR
             html = html.replace(/^---+$/gm, '<hr>');
-
-            // Blockquotes
             html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-
-            // Links
             html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
             // Ordered lists
@@ -1106,7 +1774,6 @@
                 return `<ul>${match}</ul>`;
             });
 
-            // Line breaks (not inside pre)
             html = html.replace(/\n/g, '<br>');
             html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (_, code) => {
                 return `<pre><code>${code.replace(/<br>/g, '\n')}</code></pre>`;
@@ -1147,7 +1814,6 @@
                 textEl.textContent = text;
             }
 
-            // Copy button
             const copyBtn = document.createElement('button');
             copyBtn.className = 'msg__copy';
             copyBtn.textContent = 'cp';
@@ -1282,7 +1948,11 @@
         }
 
         // ── Initialize ──
-        function init() {
+        async function init() {
+            // Try to restore wallet session first
+            const restored = await wallet.restoreSession();
+            updateWalletUI();
+
             const wsUrl = getServerUrl();
             if (wsUrl) {
                 if (!getApiUrl()) {
@@ -1292,8 +1962,26 @@
                 connectWs();
                 loadAgents();
             } else {
+                // No server URL — show settings
                 settingsModal.classList.add('visible');
                 serverUrlInput.focus();
+            }
+
+            // If no wallet and no stored wallet, auto-show wallet modal after a beat
+            if (!restored && !wallet.hasStoredWallet() && wsUrl) {
+                setTimeout(() => {
+                    if (!wallet.isConnected()) {
+                        walletModal.classList.add('visible');
+                    }
+                }, 1500);
+            } else if (!restored && wallet.hasStoredWallet()) {
+                // Has stored wallet, show unlock prompt
+                setTimeout(() => {
+                    if (!wallet.isConnected()) {
+                        walletModal.classList.add('visible');
+                        walletUnlockPassword.focus();
+                    }
+                }, 500);
             }
         }
 
