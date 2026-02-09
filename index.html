@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CorvidAgent Chat</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐦‍⬛</text></svg>">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-base: #0a0e14;
+            --bg-surface: #11151c;
+            --bg-elevated: #1a1f2b;
+            --bg-raised: #222838;
+            --border: #2a3040;
+            --border-bright: #3a4560;
+            --text-primary: #e0e6f0;
+            --text-secondary: #8892a4;
+            --text-tertiary: #5a6478;
+            --accent-cyan: #00e5ff;
+            --accent-cyan-dim: rgba(0, 229, 255, 0.1);
+            --accent-green: #4caf50;
+            --accent-orange: #ff9800;
+            --accent-magenta: #ff00aa;
+            --accent-red: #f44336;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --radius-sm: 4px;
+            --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+        }
+
+        html, body {
+            height: 100%;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Layout ── */
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        /* ── Header ── */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .header__status {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-tertiary); flex-shrink: 0;
+            transition: background 0.3s;
+        }
+        .header__status.connected { background: var(--accent-green); box-shadow: 0 0 6px rgba(76, 175, 80, 0.5); }
+        .header__status.error { background: var(--accent-red); }
+        .header__title {
+            font-size: 1rem; font-weight: 700;
+            color: var(--accent-cyan); letter-spacing: 0.02em;
+        }
+        .header__controls {
+            margin-left: auto;
+            display: flex; gap: 0.5rem; align-items: center;
+        }
+        .agent-select {
+            background: var(--bg-elevated); color: var(--text-primary);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 0.4rem 0.6rem; font-size: 0.8rem;
+            font-family: inherit; cursor: pointer; max-width: 160px;
+        }
+        .agent-select:focus { outline: none; border-color: var(--accent-cyan); }
+        .settings-btn {
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-secondary); border-radius: var(--radius);
+            padding: 0.35rem 0.5rem; font-size: 0.85rem; cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .settings-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+        /* ── Messages ── */
+        .messages {
+            flex: 1; overflow-y: auto; padding: 1rem;
+            display: flex; flex-direction: column; gap: 0.75rem;
+            -webkit-overflow-scrolling: touch;
+        }
+        .message {
+            max-width: 88%; padding: 0.6rem 0.85rem;
+            border-radius: var(--radius-lg); font-size: 0.9rem;
+            line-height: 1.5; word-wrap: break-word;
+        }
+        .message--user {
+            align-self: flex-end;
+            background: var(--accent-cyan-dim);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            white-space: pre-wrap;
+        }
+        .message--assistant {
+            align-self: flex-start;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+        }
+        .message--assistant code {
+            background: var(--bg-raised); color: var(--accent-magenta);
+            padding: 1px 5px; border-radius: var(--radius-sm);
+            font-family: var(--font-mono); font-size: 0.85em;
+        }
+        .message--assistant pre {
+            background: var(--bg-raised); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 0.6rem 0.75rem;
+            overflow-x: auto; margin: 0.4rem 0; font-size: 0.82em;
+            line-height: 1.5;
+        }
+        .message--assistant pre code {
+            background: transparent; padding: 0; color: var(--text-primary);
+        }
+        .message--assistant strong { color: var(--accent-cyan); font-weight: 700; }
+        .message--assistant em { color: var(--text-secondary); }
+        .message--assistant a { color: var(--accent-cyan); text-decoration: underline; }
+        .message--assistant ul, .message--assistant ol { padding-left: 1.2rem; margin: 0.3rem 0; }
+        .message--assistant li { margin: 0.15rem 0; }
+        .message--assistant h1, .message--assistant h2, .message--assistant h3 {
+            color: var(--accent-cyan); margin: 0.5rem 0 0.25rem; font-size: 1em;
+        }
+        .message--assistant blockquote {
+            border-left: 3px solid var(--accent-cyan); padding-left: 0.75rem;
+            color: var(--text-secondary); margin: 0.3rem 0;
+        }
+        .message--system {
+            align-self: center; background: transparent;
+            color: var(--text-tertiary); font-size: 0.75rem;
+            text-align: center; max-width: 100%;
+        }
+        .message--tool {
+            align-self: flex-start;
+            background: rgba(255, 152, 0, 0.08);
+            border: 1px solid rgba(255, 152, 0, 0.2);
+            color: var(--accent-orange); font-size: 0.8rem;
+            padding: 0.35rem 0.65rem; font-family: var(--font-mono);
+        }
+        .message--command {
+            align-self: flex-end;
+            background: rgba(255, 0, 170, 0.08);
+            border: 1px solid rgba(255, 0, 170, 0.2);
+            color: var(--accent-magenta); font-size: 0.85rem;
+            font-family: var(--font-mono);
+        }
+
+        .thinking-indicator {
+            align-self: flex-start; display: flex; gap: 4px;
+            padding: 0.6rem 0.85rem;
+        }
+        .thinking-indicator span {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--text-tertiary);
+            animation: bounce 1.4s ease-in-out infinite;
+        }
+        .thinking-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-6px); }
+        }
+
+        /* ── Input ── */
+        .input-area {
+            display: flex; gap: 0.5rem; padding: 0.75rem 1rem;
+            background: var(--bg-surface); border-top: 1px solid var(--border);
+            flex-shrink: 0; position: relative;
+        }
+        .input-area__field {
+            flex: 1; background: var(--bg-elevated); color: var(--text-primary);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 0.6rem 0.85rem; font-size: 0.9rem;
+            font-family: inherit; resize: none;
+            min-height: 40px; max-height: 120px; line-height: 1.4;
+        }
+        .input-area__field::placeholder { color: var(--text-tertiary); }
+        .input-area__field:focus { outline: none; border-color: var(--accent-cyan); }
+        .input-area__send {
+            background: transparent; color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan); border-radius: var(--radius);
+            padding: 0 1rem; font-size: 0.8rem; font-weight: 600;
+            font-family: inherit; text-transform: uppercase;
+            letter-spacing: 0.05em; cursor: pointer;
+            transition: background 0.15s; flex-shrink: 0;
+            align-self: flex-end; height: 40px;
+        }
+        .input-area__send:hover { background: var(--accent-cyan-dim); }
+        .input-area__send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── Command autocomplete ── */
+        .autocomplete {
+            position: absolute; bottom: 100%; left: 1rem; right: 1rem;
+            background: var(--bg-surface); border: 1px solid var(--border-bright);
+            border-radius: var(--radius); overflow: hidden;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+            display: none; max-height: 280px; overflow-y: auto;
+        }
+        .autocomplete.visible { display: block; }
+        .autocomplete__item {
+            display: flex; flex-direction: column; gap: 0.15rem;
+            padding: 0.55rem 0.75rem; cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.1s;
+        }
+        .autocomplete__item:last-child { border-bottom: none; }
+        .autocomplete__item:hover, .autocomplete__item.selected {
+            background: var(--accent-cyan-dim);
+        }
+        .autocomplete__name {
+            font-family: var(--font-mono); font-size: 0.85rem;
+            color: var(--accent-magenta); font-weight: 600;
+        }
+        .autocomplete__desc {
+            font-size: 0.75rem; color: var(--text-secondary);
+        }
+        .autocomplete__usage {
+            font-size: 0.7rem; color: var(--text-tertiary);
+            font-family: var(--font-mono);
+        }
+        .autocomplete__badge {
+            display: inline-block; font-size: 0.6rem; padding: 1px 5px;
+            border-radius: var(--radius-sm); font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.04em;
+            margin-left: 0.4rem; vertical-align: middle;
+        }
+        .autocomplete__badge--privileged {
+            color: var(--accent-orange); border: 1px solid rgba(255, 152, 0, 0.3);
+            background: rgba(255, 152, 0, 0.08);
+        }
+
+        /* ── Settings modal ── */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(3px); z-index: 1000;
+            display: none; align-items: center; justify-content: center;
+        }
+        .modal-backdrop.visible { display: flex; }
+        .modal {
+            background: var(--bg-surface); border: 1px solid var(--border-bright);
+            border-radius: var(--radius-lg); padding: 1.5rem;
+            width: 90%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+        }
+        .modal h2 {
+            color: var(--accent-cyan); font-size: 1.1rem; margin-bottom: 1rem;
+        }
+        .modal label {
+            display: block; color: var(--text-secondary); font-size: 0.8rem;
+            margin-bottom: 0.3rem; margin-top: 0.75rem;
+        }
+        .modal input[type="text"], .modal input[type="url"] {
+            width: 100%; background: var(--bg-elevated); color: var(--text-primary);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 0.5rem 0.75rem; font-size: 0.85rem; font-family: inherit;
+        }
+        .modal input:focus { outline: none; border-color: var(--accent-cyan); }
+        .modal__actions {
+            display: flex; gap: 0.5rem; margin-top: 1.25rem; justify-content: flex-end;
+        }
+        .modal__btn {
+            padding: 0.45rem 1rem; border-radius: var(--radius);
+            font-size: 0.8rem; font-weight: 600; font-family: inherit;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em;
+            transition: background 0.15s;
+        }
+        .modal__btn--primary {
+            background: var(--accent-cyan-dim); color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+        }
+        .modal__btn--primary:hover { background: rgba(0, 229, 255, 0.2); }
+        .modal__btn--secondary {
+            background: transparent; color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .modal__btn--secondary:hover { background: var(--bg-elevated); }
+        .modal__hint {
+            font-size: 0.7rem; color: var(--text-tertiary); margin-top: 0.2rem;
+        }
+
+        /* ── Empty state ── */
+        .empty-state {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: var(--text-tertiary); font-size: 0.9rem;
+            text-align: center; padding: 2rem; gap: 1rem;
+        }
+        .empty-state__commands {
+            display: flex; flex-wrap: wrap; gap: 0.4rem;
+            justify-content: center; max-width: 400px;
+        }
+        .empty-state__cmd {
+            font-family: var(--font-mono); font-size: 0.75rem;
+            padding: 0.2rem 0.5rem; border-radius: var(--radius-sm);
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            color: var(--accent-magenta); cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .empty-state__cmd:hover { border-color: var(--accent-magenta); }
+
+        /* ── iOS safe area ── */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .input-area { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+        }
+
+        /* ── Scrollbar ── */
+        .messages::-webkit-scrollbar { width: 6px; }
+        .messages::-webkit-scrollbar-track { background: transparent; }
+        .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        .messages::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+
+        /* ── Mobile ── */
+        @media (max-width: 480px) {
+            .header__title { font-size: 0.9rem; }
+            .agent-select { max-width: 120px; font-size: 0.75rem; }
+            .message { max-width: 92%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <div class="header">
+            <div class="header__status" id="statusDot"></div>
+            <div class="header__title">CorvidAgent</div>
+            <div class="header__controls">
+                <select class="agent-select" id="agentSelect" aria-label="Select agent">
+                    <option value="">Connecting...</option>
+                </select>
+                <button class="settings-btn" id="settingsBtn" aria-label="Settings" title="Settings">&#9881;</button>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="messages" id="messages">
+            <div class="empty-state" id="emptyState">
+                <div>Select an agent and send a message to start chatting.</div>
+                <div style="font-size: 0.75rem; color: var(--text-tertiary);">
+                    Type <code style="color: var(--accent-magenta); font-family: var(--font-mono);">/</code> for commands
+                </div>
+                <div class="empty-state__commands" id="commandHints"></div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="input-area">
+            <div class="autocomplete" id="autocomplete"></div>
+            <textarea
+                class="input-area__field"
+                id="messageInput"
+                placeholder="Type a message or /command..."
+                rows="1"
+                aria-label="Message input"
+            ></textarea>
+            <button class="input-area__send" id="sendBtn" disabled aria-label="Send message">Send</button>
+        </div>
+    </div>
+
+    <!-- Settings modal -->
+    <div class="modal-backdrop" id="settingsModal">
+        <div class="modal">
+            <h2>Connection Settings</h2>
+            <label for="serverUrl">Server URL</label>
+            <input type="url" id="serverUrl" placeholder="wss://your-server.com/ws">
+            <div class="modal__hint">WebSocket URL of your corvid-agent instance (e.g. wss://example.com/ws or ws://localhost:3000/ws)</div>
+
+            <label for="apiUrl">API URL</label>
+            <input type="url" id="apiUrl" placeholder="https://your-server.com">
+            <div class="modal__hint">HTTP base URL for the REST API (e.g. https://example.com or http://localhost:3000)</div>
+
+            <div class="modal__actions">
+                <button class="modal__btn modal__btn--secondary" id="settingsCancel">Cancel</button>
+                <button class="modal__btn modal__btn--primary" id="settingsSave">Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ── Command definitions (synced from corvid-agent/shared/command-defs.ts) ──
+        const COMMANDS = [
+            { name: '/status',   desc: 'Show active sessions and conversation count', usage: '/status', privileged: false },
+            { name: '/credits',  desc: 'Show your credit balance and rates', usage: '/credits', privileged: false },
+            { name: '/history',  desc: 'Show recent credit transactions', usage: '/history [limit]', privileged: false },
+            { name: '/queue',    desc: 'Show pending escalation/approval requests', usage: '/queue', privileged: false },
+            { name: '/agent',    desc: 'List available agents or switch default', usage: '/agent [name]', privileged: true },
+            { name: '/stop',     desc: 'Stop a running session', usage: '/stop <session-id>', privileged: true },
+            { name: '/approve',  desc: 'Approve a pending escalation request', usage: '/approve <queue-id>', privileged: true },
+            { name: '/deny',     desc: 'Deny a pending escalation request', usage: '/deny <queue-id>', privileged: true },
+            { name: '/mode',     desc: 'View or set operational mode', usage: '/mode [normal|queued|paused]', privileged: true },
+            { name: '/work',     desc: 'Create a work task (branch + PR)', usage: '/work <description>', privileged: true },
+            { name: '/council',  desc: 'Launch multi-agent council discussion', usage: '/council @Agent1 @Agent2 -- <prompt>', privileged: true },
+            { name: '/extend',   desc: 'Extend a running session timeout', usage: '/extend [minutes]', privileged: true },
+            { name: '/help',     desc: 'Show available commands and usage', usage: '/help [command]', privileged: false },
+        ];
+
+        // ── State ──
+        let ws = null;
+        let currentAgentId = '';
+        let isStreaming = false;
+        let streamingEl = null;
+        let streamBuffer = '';
+        let selectedAutocompleteIndex = -1;
+        let filteredCommands = [];
+        let reconnectTimer = null;
+        let reconnectDelay = 1000;
+
+        // ── DOM refs ──
+        const messagesEl = document.getElementById('messages');
+        const emptyState = document.getElementById('emptyState');
+        const agentSelect = document.getElementById('agentSelect');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusDot = document.getElementById('statusDot');
+        const autocompleteEl = document.getElementById('autocomplete');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsModal = document.getElementById('settingsModal');
+        const serverUrlInput = document.getElementById('serverUrl');
+        const apiUrlInput = document.getElementById('apiUrl');
+        const settingsSave = document.getElementById('settingsSave');
+        const settingsCancel = document.getElementById('settingsCancel');
+        const commandHints = document.getElementById('commandHints');
+
+        // ── Settings persistence ──
+        function getServerUrl() {
+            return localStorage.getItem('corvid_ws_url') || '';
+        }
+        function getApiUrl() {
+            return localStorage.getItem('corvid_api_url') || '';
+        }
+        function saveSettings(wsUrl, apiBaseUrl) {
+            localStorage.setItem('corvid_ws_url', wsUrl);
+            localStorage.setItem('corvid_api_url', apiBaseUrl);
+        }
+
+        // Derive API URL from WS URL if not set
+        function deriveApiUrl(wsUrl) {
+            try {
+                const u = new URL(wsUrl);
+                const proto = u.protocol === 'wss:' ? 'https:' : 'http:';
+                return `${proto}//${u.host}`;
+            } catch { return ''; }
+        }
+
+        // ── Settings modal ──
+        settingsBtn.addEventListener('click', () => {
+            serverUrlInput.value = getServerUrl();
+            apiUrlInput.value = getApiUrl();
+            settingsModal.classList.add('visible');
+            serverUrlInput.focus();
+        });
+        settingsCancel.addEventListener('click', () => {
+            settingsModal.classList.remove('visible');
+        });
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) settingsModal.classList.remove('visible');
+        });
+        settingsSave.addEventListener('click', () => {
+            const wsUrl = serverUrlInput.value.trim();
+            const apiBase = apiUrlInput.value.trim() || deriveApiUrl(wsUrl);
+            if (!wsUrl) { serverUrlInput.focus(); return; }
+            saveSettings(wsUrl, apiBase);
+            settingsModal.classList.remove('visible');
+            // Reconnect
+            if (ws) { ws.close(); ws = null; }
+            connectWs();
+            loadAgents();
+        });
+
+        // ── Command hint chips in empty state ──
+        COMMANDS.filter(c => !c.privileged).forEach(cmd => {
+            const chip = document.createElement('span');
+            chip.className = 'empty-state__cmd';
+            chip.textContent = cmd.name;
+            chip.title = cmd.desc;
+            chip.addEventListener('click', () => {
+                messageInput.value = cmd.name + ' ';
+                messageInput.focus();
+                hideAutocomplete();
+            });
+            commandHints.appendChild(chip);
+        });
+
+        // ── Auto-resize textarea ──
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+            updateSendButton();
+            handleAutocomplete();
+        });
+
+        // ── Key handling ──
+        messageInput.addEventListener('keydown', (e) => {
+            // Autocomplete navigation
+            if (autocompleteEl.classList.contains('visible')) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedAutocompleteIndex = Math.min(selectedAutocompleteIndex + 1, filteredCommands.length - 1);
+                    updateAutocompleteSelection();
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedAutocompleteIndex = Math.max(selectedAutocompleteIndex - 1, 0);
+                    updateAutocompleteSelection();
+                    return;
+                }
+                if (e.key === 'Tab' || (e.key === 'Enter' && selectedAutocompleteIndex >= 0)) {
+                    e.preventDefault();
+                    const cmd = filteredCommands[selectedAutocompleteIndex] || filteredCommands[0];
+                    if (cmd) {
+                        messageInput.value = cmd.name + ' ';
+                        hideAutocomplete();
+                        messageInput.focus();
+                        updateSendButton();
+                    }
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    hideAutocomplete();
+                    return;
+                }
+            }
+
+            // Send on Enter (Shift+Enter for newline)
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+        agentSelect.addEventListener('change', () => {
+            currentAgentId = agentSelect.value;
+            updateSendButton();
+        });
+
+        // ── Autocomplete ──
+        function handleAutocomplete() {
+            const value = messageInput.value;
+            if (!value.startsWith('/') || value.includes('\n')) {
+                hideAutocomplete();
+                return;
+            }
+            const typed = value.split(' ')[0].toLowerCase();
+            filteredCommands = COMMANDS.filter(c => c.name.startsWith(typed));
+
+            if (filteredCommands.length === 0 || (filteredCommands.length === 1 && filteredCommands[0].name === typed && value.includes(' '))) {
+                hideAutocomplete();
+                return;
+            }
+
+            selectedAutocompleteIndex = 0;
+            autocompleteEl.innerHTML = filteredCommands.map((cmd, i) => `
+                <div class="autocomplete__item${i === 0 ? ' selected' : ''}" data-index="${i}">
+                    <div>
+                        <span class="autocomplete__name">${cmd.name}</span>
+                        ${cmd.privileged ? '<span class="autocomplete__badge autocomplete__badge--privileged">owner</span>' : ''}
+                    </div>
+                    <div class="autocomplete__desc">${cmd.desc}</div>
+                    <div class="autocomplete__usage">${cmd.usage}</div>
+                </div>
+            `).join('');
+
+            autocompleteEl.querySelectorAll('.autocomplete__item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const idx = parseInt(item.dataset.index);
+                    messageInput.value = filteredCommands[idx].name + ' ';
+                    hideAutocomplete();
+                    messageInput.focus();
+                    updateSendButton();
+                });
+                item.addEventListener('mouseenter', () => {
+                    selectedAutocompleteIndex = parseInt(item.dataset.index);
+                    updateAutocompleteSelection();
+                });
+            });
+
+            autocompleteEl.classList.add('visible');
+        }
+
+        function updateAutocompleteSelection() {
+            autocompleteEl.querySelectorAll('.autocomplete__item').forEach((el, i) => {
+                el.classList.toggle('selected', i === selectedAutocompleteIndex);
+            });
+        }
+
+        function hideAutocomplete() {
+            autocompleteEl.classList.remove('visible');
+            selectedAutocompleteIndex = -1;
+            filteredCommands = [];
+        }
+
+        function updateSendButton() {
+            sendBtn.disabled = !currentAgentId || !messageInput.value.trim() || isStreaming;
+        }
+
+        // ── Load agents ──
+        async function loadAgents() {
+            const apiBase = getApiUrl();
+            if (!apiBase) {
+                agentSelect.innerHTML = '<option value="">Configure server...</option>';
+                return;
+            }
+            try {
+                const res = await fetch(`${apiBase}/api/agents`);
+                if (!res.ok) throw new Error(res.statusText);
+                const agents = await res.json();
+                agentSelect.innerHTML = '';
+
+                if (agents.length === 0) {
+                    agentSelect.innerHTML = '<option value="">No agents</option>';
+                    return;
+                }
+
+                const defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'Select agent...';
+                agentSelect.appendChild(defaultOpt);
+
+                for (const agent of agents) {
+                    const opt = document.createElement('option');
+                    opt.value = agent.id;
+                    opt.textContent = agent.name;
+                    agentSelect.appendChild(opt);
+                }
+
+                if (agents.length === 1) {
+                    agentSelect.value = agents[0].id;
+                    currentAgentId = agents[0].id;
+                    updateSendButton();
+                }
+            } catch (err) {
+                agentSelect.innerHTML = '<option value="">Failed to load agents</option>';
+            }
+        }
+
+        // ── WebSocket ──
+        function connectWs() {
+            const wsUrl = getServerUrl();
+            if (!wsUrl) {
+                statusDot.className = 'header__status';
+                // Show settings on first visit
+                if (!localStorage.getItem('corvid_ws_url')) {
+                    settingsModal.classList.add('visible');
+                    serverUrlInput.focus();
+                }
+                return;
+            }
+
+            try {
+                ws = new WebSocket(wsUrl);
+            } catch (err) {
+                statusDot.className = 'header__status error';
+                scheduleReconnect();
+                return;
+            }
+
+            ws.addEventListener('open', () => {
+                statusDot.className = 'header__status connected';
+                reconnectDelay = 1000;
+                appendSystem('Connected to server');
+            });
+
+            ws.addEventListener('close', () => {
+                statusDot.className = 'header__status error';
+                ws = null;
+                scheduleReconnect();
+            });
+
+            ws.addEventListener('error', () => {
+                statusDot.className = 'header__status error';
+            });
+
+            ws.addEventListener('message', (event) => {
+                try {
+                    handleServerMessage(JSON.parse(event.data));
+                } catch { /* ignore parse errors */ }
+            });
+        }
+
+        function scheduleReconnect() {
+            if (reconnectTimer) return;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectWs();
+            }, reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
+        }
+
+        // ── Server message handling ──
+        function handleServerMessage(msg) {
+            switch (msg.type) {
+                case 'chat_thinking':
+                    msg.active ? showThinking() : hideThinking();
+                    break;
+
+                case 'chat_stream':
+                    hideThinking();
+                    if (!streamingEl) {
+                        streamingEl = appendMessage('', 'assistant', true);
+                        streamBuffer = '';
+                        isStreaming = true;
+                        updateSendButton();
+                    }
+                    streamBuffer += msg.chunk;
+                    renderMarkdown(streamingEl, streamBuffer);
+                    scrollToBottom();
+
+                    if (msg.done) {
+                        streamingEl = null;
+                        streamBuffer = '';
+                        isStreaming = false;
+                        updateSendButton();
+                    }
+                    break;
+
+                case 'chat_tool_use':
+                    appendMessage(`\u2699 ${msg.toolName}`, 'tool');
+                    break;
+
+                case 'chat_session':
+                    // Session created, could show session ID
+                    break;
+
+                case 'algochat_message':
+                    if (msg.direction === 'outbound') {
+                        if (!streamingEl) {
+                            const el = appendMessage('', 'assistant');
+                            renderMarkdown(el, msg.content);
+                        }
+                    } else if (msg.direction === 'status') {
+                        appendSystem(msg.content);
+                    } else {
+                        const addr = msg.participant ? msg.participant.slice(0, 8) + '...' : 'unknown';
+                        appendSystem(`[${addr}]: ${msg.content}`);
+                    }
+                    break;
+
+                case 'error':
+                    appendSystem(`\u26a0 ${msg.message}`);
+                    isStreaming = false;
+                    streamingEl = null;
+                    updateSendButton();
+                    break;
+
+                case 'work_task_update':
+                    if (msg.task) {
+                        const status = msg.task.status || 'unknown';
+                        const branch = msg.task.branchName ? ` (${msg.task.branchName})` : '';
+                        appendSystem(`Work task ${status}${branch}`);
+                    }
+                    break;
+
+                case 'approval_request':
+                    if (msg.request) {
+                        appendSystem(`\ud83d\udfe1 Approval needed: ${msg.request.description} \u2014 /approve ${msg.request.id} or /deny ${msg.request.id}`);
+                    }
+                    break;
+            }
+        }
+
+        // ── Send message ──
+        function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content || !currentAgentId || isStreaming || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+            hideAutocomplete();
+
+            // Visual distinction for commands
+            const isCommand = content.startsWith('/');
+            appendMessage(content, isCommand ? 'command' : 'user');
+
+            ws.send(JSON.stringify({
+                type: 'chat_send',
+                agentId: currentAgentId,
+                content,
+            }));
+
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            updateSendButton();
+        }
+
+        // ── Markdown renderer (lightweight) ──
+        function renderMarkdown(el, text) {
+            // Escape HTML first
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            // Code blocks (```lang\n...\n```)
+            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+                return `<pre><code>${code}</code></pre>`;
+            });
+
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // Italic
+            html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+            // Headers
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+            // Blockquotes
+            html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+            // Unordered lists
+            html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
+
+            // Line breaks (but not inside pre/code)
+            html = html.replace(/\n/g, '<br>');
+            // Clean up brs inside pre
+            html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (_, code) => {
+                return `<pre><code>${code.replace(/<br>/g, '\n')}</code></pre>`;
+            });
+
+            el.innerHTML = html;
+        }
+
+        // ── DOM helpers ──
+        function removeEmptyState() {
+            if (emptyState && emptyState.parentNode) {
+                emptyState.remove();
+            }
+        }
+
+        function appendMessage(text, type, raw) {
+            removeEmptyState();
+            const el = document.createElement('div');
+            el.className = `message message--${type}`;
+            if (raw) {
+                // Will be filled by renderMarkdown later
+            } else if (type === 'assistant') {
+                renderMarkdown(el, text);
+            } else {
+                el.textContent = text;
+            }
+            messagesEl.appendChild(el);
+            scrollToBottom();
+            return el;
+        }
+
+        function appendSystem(text) {
+            removeEmptyState();
+            const el = document.createElement('div');
+            el.className = 'message message--system';
+            el.textContent = text;
+            messagesEl.appendChild(el);
+            scrollToBottom();
+            return el;
+        }
+
+        let thinkingEl = null;
+        function showThinking() {
+            if (thinkingEl) return;
+            removeEmptyState();
+            thinkingEl = document.createElement('div');
+            thinkingEl.className = 'thinking-indicator';
+            thinkingEl.setAttribute('aria-label', 'Agent is thinking');
+            thinkingEl.innerHTML = '<span></span><span></span><span></span>';
+            messagesEl.appendChild(thinkingEl);
+            scrollToBottom();
+        }
+        function hideThinking() {
+            if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+        }
+
+        function scrollToBottom() {
+            requestAnimationFrame(() => {
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            });
+        }
+
+        // ── Initialize ──
+        function init() {
+            const wsUrl = getServerUrl();
+            if (wsUrl) {
+                // Ensure API URL is derived if not set
+                if (!getApiUrl()) {
+                    const apiBase = deriveApiUrl(wsUrl);
+                    if (apiBase) localStorage.setItem('corvid_api_url', apiBase);
+                }
+                connectWs();
+                loadAgents();
+            } else {
+                // First visit — show settings
+                settingsModal.classList.add('visible');
+                serverUrlInput.focus();
+            }
+        }
+
+        init();
+    })();
+    </script>
+</body>
+</html>
