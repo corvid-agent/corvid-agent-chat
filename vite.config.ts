@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { configDefaults } from 'vitest/config';
 
 export default defineConfig({
   base: '/corvid-agent-chat/',
@@ -21,5 +22,10 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+  },
+  test: {
+    environment: 'jsdom',
+    exclude: [...configDefaults.exclude],
+    include: ['src/**/*.test.ts'],
   },
 });

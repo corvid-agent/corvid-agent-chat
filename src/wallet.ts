@@ -9,6 +9,7 @@ import {
   type ChatAccount,
 } from '@corvidlabs/ts-algochat';
 import type { StoredWallet } from './types.ts';
+import { bufferToBase64, base64ToBuffer } from './utils.ts';
 
 const STORAGE_KEY = 'corvid-wallet';
 const PBKDF2_ITERATIONS = 600_000;
@@ -178,21 +179,4 @@ async function decryptMnemonic(
   } catch {
     throw new Error('Invalid password');
   }
-}
-
-function bufferToBase64(buf: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < buf.length; i++) {
-    binary += String.fromCharCode(buf[i]!);
-  }
-  return btoa(binary);
-}
-
-function base64ToBuffer(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const buf = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    buf[i] = binary.charCodeAt(i);
-  }
-  return buf;
 }

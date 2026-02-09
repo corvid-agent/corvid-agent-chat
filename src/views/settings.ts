@@ -6,6 +6,8 @@ import { getAccount, exportMnemonic, deleteWallet, lockWallet } from '../wallet.
 import { clearConnection, loadConnection } from '../qr-scanner.ts';
 import { messaging } from '../messaging.ts';
 import { showToast } from '../toast.ts';
+import { escapeHtml } from '../utils.ts';
+import { deleteDatabase } from '../db.ts';
 
 export function renderSettings(): string {
   const state = store.getState();
@@ -233,7 +235,7 @@ export function bindSettingsEvents(): void {
   // Delete all data
   document
     .getElementById('btn-delete-all')
-    ?.addEventListener('click', () => {
+    ?.addEventListener('click', async () => {
       if (
         confirm(
           'This will permanently delete your wallet and all data. This cannot be undone. Continue?'
@@ -242,15 +244,10 @@ export function bindSettingsEvents(): void {
         messaging.destroy();
         clearConnection();
         deleteWallet();
+        await deleteDatabase();
         localStorage.clear();
         store.lockWallet();
         showToast('All data deleted', 'info');
       }
     });
-}
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

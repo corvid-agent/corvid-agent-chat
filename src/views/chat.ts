@@ -7,6 +7,8 @@ import { getAccount } from '../wallet.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { showToast } from '../toast.ts';
 import type { ChatMessage } from '../types.ts';
+import { escapeHtml, shortenAddress } from '../utils.ts';
+import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 
 let outputEl: HTMLElement | null = null;
 let inputEl: HTMLTextAreaElement | null = null;
@@ -18,12 +20,8 @@ export function renderChat(): string {
   const wallet = state.wallet;
 
   const agentLabel = agent?.label ?? 'Unknown Agent';
-  const agentAddr = agent?.address
-    ? `${agent.address.slice(0, 6)}...${agent.address.slice(-4)}`
-    : '';
-  const walletAddr = wallet.address
-    ? `${wallet.address.slice(0, 4)}...${wallet.address.slice(-4)}`
-    : '';
+  const agentAddr = agent?.address ? shortenAddress(agent.address) : '';
+  const walletAddr = wallet.address ? shortenAddress(wallet.address, 4, 4) : '';
   const network = agent?.network ?? 'mainnet';
 
   return `
@@ -85,10 +83,20 @@ export function bindChatEvents(): void {
 
   messaging.initialize(account, connection);
 
+  // Load persisted message history from IndexedDB
+  loadMessages(connection.address).then((history) => {
+    for (const msg of history) {
+      store.addMessage(msg);
+      appendMessage(msg);
+    }
+  });
+
   // Subscribe to incoming messages
   unsubMessages = messaging.onMessage((msg: ChatMessage) => {
     store.addMessage(msg);
     appendMessage(msg);
+    // Persist to IndexedDB
+    saveMessage(msg, connection.address);
   });
 
   // Start polling
@@ -139,6 +147,8 @@ export function bindChatEvents(): void {
 
     store.addMessage(outMsg);
     appendMessage(outMsg);
+    // Persist optimistic message
+    saveMessage(outMsg, connection.address);
 
     inputEl.value = '';
     inputEl.style.height = 'auto';
@@ -151,12 +161,15 @@ export function bindChatEvents(): void {
       const txid = await messaging.sendMessage(content);
       store.updateMessageStatus(tempId, 'confirmed', txid);
       updateMessageEl(tempId, 'confirmed');
+      // Update persisted status
+      dbUpdateStatus(tempId, 'confirmed', txid);
 
       // Show waiting indicator
       showThinking();
     } catch (err) {
       store.updateMessageStatus(tempId, 'failed');
       updateMessageEl(tempId, 'failed');
+      dbUpdateStatus(tempId, 'failed');
       showToast(
         `Send failed: ${err instanceof Error ? err.message : 'unknown error'}`,
         'error'
@@ -307,11 +320,4 @@ export function cleanupChat(): void {
 
   outputEl = null;
   inputEl = null;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

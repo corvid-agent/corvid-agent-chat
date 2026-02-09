@@ -28,7 +28,7 @@ export interface ChatMessage {
 }
 
 export interface AppState {
-  view: 'setup' | 'scan' | 'chat' | 'settings' | 'wallet';
+  view: 'setup' | 'scan' | 'chat' | 'settings';
   wallet: WalletState;
   agent: AgentState;
   chat: ChatState;

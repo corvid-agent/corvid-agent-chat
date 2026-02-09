@@ -21,6 +21,7 @@ import {
   decryptPSKMessage,
 } from '@corvidlabs/ts-algochat';
 import type { AgentConnection, ChatMessage } from './types.ts';
+import { base64ToBuffer } from './utils.ts';
 
 const PSK_STATE_KEY = 'corvid-psk-state';
 const LAST_ROUND_KEY = 'corvid-last-round';
@@ -280,7 +281,7 @@ export class MessagingService {
           // Deduplication
           if (this.processedTxids.has(tx.id)) continue;
 
-          const noteBytes = base64ToBytes(tx.note);
+          const noteBytes = base64ToBuffer(tx.note);
 
           // Check PSK protocol
           if (!isPSKMessage(noteBytes)) continue;
@@ -426,17 +427,6 @@ export class MessagingService {
       this.lastRound = parseInt(raw, 10) || 0;
     }
   }
-}
-
-// ── Helpers ──
-
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }
 
 // Singleton
