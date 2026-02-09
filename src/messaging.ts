@@ -25,8 +25,14 @@ import { base64ToBuffer } from './utils.ts';
 
 const PSK_STATE_KEY = 'corvid-psk-state';
 const LAST_ROUND_KEY = 'corvid-last-round';
-const POLL_INTERVAL = 10_000; // 10 seconds
+const PROCESSED_TXIDS_KEY = 'corvid-processed-txids';
+const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MAX_MS = 120_000;
+const POLL_BACKOFF_MULTIPLIER = 2;
 const MAX_PROCESSED_TXIDS = 500;
+const TXID_EVICTION_COUNT = 100;
+/** Minimum ALGO to send per message (in microALGO) */
+const MIN_TX_AMOUNT_MICROALGO = 1_000;
 
 type MessageCallback = (message: ChatMessage) => void;
 
@@ -57,14 +63,36 @@ export class MessagingService {
   private connection: AgentConnection | null = null;
   private pskState: PSKState = createPSKState();
   private lastRound = 0;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private callbacks: Set<MessageCallback> = new Set();
   private processedTxids: Set<string> = new Set();
   private agentEncryptionKey: Uint8Array | null = null;
   private _polling = false;
+  private _pollInProgress = false;
+  private _currentInterval = POLL_INTERVAL_MS;
+  private _consecutiveErrors = 0;
+  private _errorCallbacks: Set<(error: Error | null) => void> = new Set();
 
   get isPolling(): boolean {
     return this._polling;
+  }
+
+  get consecutiveErrors(): number {
+    return this._consecutiveErrors;
+  }
+
+  /**
+   * Subscribe to polling error state changes
+   */
+  onPollError(callback: (error: Error | null) => void): () => void {
+    this._errorCallbacks.add(callback);
+    return () => this._errorCallbacks.delete(callback);
+  }
+
+  private emitPollError(error: Error | null): void {
+    for (const cb of this._errorCallbacks) {
+      try { cb(error); } catch { /* ignore */ }
+    }
   }
 
   /**
@@ -95,6 +123,7 @@ export class MessagingService {
     // Load persisted state
     this.loadPSKState();
     this.loadLastRound();
+    this.loadProcessedTxids();
   }
 
   /**
@@ -106,16 +135,14 @@ export class MessagingService {
   }
 
   /**
-   * Start polling for incoming messages
+   * Start polling for incoming messages with exponential backoff on errors
    */
   startPolling(): void {
-    if (this.pollTimer) return;
+    if (this._polling) return;
     this._polling = true;
-    // Do an immediate poll then set interval
-    this.poll().catch(console.error);
-    this.pollTimer = setInterval(() => {
-      this.poll().catch(console.error);
-    }, POLL_INTERVAL);
+    this._currentInterval = POLL_INTERVAL_MS;
+    this._consecutiveErrors = 0;
+    this.schedulePoll(0); // immediate first poll
   }
 
   /**
@@ -123,11 +150,55 @@ export class MessagingService {
    */
   stopPolling(): void {
     if (this.pollTimer) {
-      clearInterval(this.pollTimer);
+      clearTimeout(this.pollTimer);
       this.pollTimer = null;
     }
     this._polling = false;
+    this._pollInProgress = false;
     this.savePSKState();
+  }
+
+  private schedulePoll(delayMs: number): void {
+    if (!this._polling) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+
+    this.pollTimer = setTimeout(async () => {
+      if (!this._polling) return;
+
+      // Guard against overlapping polls
+      if (this._pollInProgress) {
+        this.schedulePoll(this._currentInterval);
+        return;
+      }
+
+      this._pollInProgress = true;
+      try {
+        await this.poll();
+        // Success — reset backoff
+        if (this._consecutiveErrors > 0) {
+          this._consecutiveErrors = 0;
+          this._currentInterval = POLL_INTERVAL_MS;
+          this.emitPollError(null); // signal recovery
+        }
+      } catch (err) {
+        this._consecutiveErrors++;
+        // Exponential backoff: 10s → 20s → 40s → 80s → 120s (cap)
+        this._currentInterval = Math.min(
+          POLL_INTERVAL_MS * Math.pow(POLL_BACKOFF_MULTIPLIER, this._consecutiveErrors),
+          POLL_INTERVAL_MAX_MS
+        );
+        console.error(
+          `Poll error (attempt ${this._consecutiveErrors}, next retry in ${this._currentInterval / 1000}s):`,
+          err
+        );
+        this.emitPollError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        this._pollInProgress = false;
+      }
+
+      // Schedule next poll
+      this.schedulePoll(this._currentInterval);
+    }, delayMs);
   }
 
   /**
@@ -165,7 +236,7 @@ export class MessagingService {
     const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
       sender: this.chatAccount.address,
       receiver: this.connection.address,
-      amount: 1000, // 0.001 ALGO minimum
+      amount: MIN_TX_AMOUNT_MICROALGO,
       note,
       suggestedParams: params,
     });
@@ -220,6 +291,8 @@ export class MessagingService {
     this.agentEncryptionKey = null;
     this.callbacks.clear();
     this.processedTxids.clear();
+    this._errorCallbacks.clear();
+    this._consecutiveErrors = 0;
   }
 
   // ── Private ──
@@ -359,8 +432,8 @@ export class MessagingService {
           }
         }
       } catch (err) {
-        console.error('Poll error:', err);
-        nextToken = undefined; // Stop pagination on error
+        // Rethrow to trigger backoff in schedulePoll
+        throw err;
       }
     } while (nextToken);
 
@@ -375,10 +448,33 @@ export class MessagingService {
     this.processedTxids.add(txid);
     if (this.processedTxids.size > MAX_PROCESSED_TXIDS) {
       const iter = this.processedTxids.values();
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < TXID_EVICTION_COUNT; i++) {
         const val = iter.next().value;
         if (val) this.processedTxids.delete(val);
       }
+    }
+    this.saveProcessedTxids();
+  }
+
+  private saveProcessedTxids(): void {
+    if (!this.connection) return;
+    const key = `${PROCESSED_TXIDS_KEY}-${this.connection.address}`;
+    localStorage.setItem(key, JSON.stringify([...this.processedTxids]));
+  }
+
+  private loadProcessedTxids(): void {
+    if (!this.connection) return;
+    const key = `${PROCESSED_TXIDS_KEY}-${this.connection.address}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        this.processedTxids = new Set(arr);
+      }
+    } catch {
+      // Reset on parse error
+      this.processedTxids = new Set();
     }
   }
 

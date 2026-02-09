@@ -8,6 +8,7 @@ import { messaging } from '../messaging.ts';
 import { showToast } from '../toast.ts';
 import { escapeHtml } from '../utils.ts';
 import { deleteDatabase } from '../db.ts';
+import { getIdleTimeout, setIdleTimeout, startIdleLock } from '../idle-lock.ts';
 
 export function renderSettings(): string {
   const state = store.getState();
@@ -20,6 +21,7 @@ export function renderSettings(): string {
   const agentLabel = agent?.label ?? 'None';
   const agentAddr = agent?.address ?? '';
   const network = agent?.network ?? 'mainnet';
+  const idleTimeoutMin = Math.round(getIdleTimeout() / 60_000);
 
   return `
     <div class="header">
@@ -51,6 +53,15 @@ export function renderSettings(): string {
             ${balanceAlgo} ALGO
           </div>
           <div class="form-hint">${balance.toLocaleString()} microALGO</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Auto-lock timeout</label>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input type="number" id="idle-timeout" class="form-input" value="${idleTimeoutMin}"
+              min="1" max="120" style="width:5rem;text-align:center">
+            <span style="font-size:0.75rem;color:var(--text-secondary)">minutes</span>
+          </div>
+          <div class="form-hint">Wallet locks automatically after inactivity</div>
         </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           <button id="btn-export-mnemonic" class="btn btn--secondary">
@@ -140,6 +151,20 @@ export function bindSettingsEvents(): void {
       }
     });
 
+  // Idle timeout setting
+  const idleInput = document.getElementById('idle-timeout') as HTMLInputElement | null;
+  idleInput?.addEventListener('change', () => {
+    const val = parseInt(idleInput.value, 10);
+    if (val >= 1 && val <= 120) {
+      setIdleTimeout(val);
+      startIdleLock(); // restart with new timeout
+      showToast(`Auto-lock set to ${val} min`, 'info');
+    } else {
+      idleInput.value = String(Math.round(getIdleTimeout() / 60_000));
+      showToast('Timeout must be 1-120 minutes', 'error');
+    }
+  });
+
   // Export mnemonic
   document
     .getElementById('btn-export-mnemonic')
@@ -183,9 +208,19 @@ export function bindSettingsEvents(): void {
             overlay.remove();
           });
 
+        // Close on click outside modal
         overlay.addEventListener('click', (e) => {
           if (e.target === overlay) overlay.remove();
         });
+
+        // Close on Escape key
+        const onEscape = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') {
+            overlay.remove();
+            document.removeEventListener('keydown', onEscape);
+          }
+        };
+        document.addEventListener('keydown', onEscape);
       } catch (err) {
         showToast(
           err instanceof Error ? err.message : 'Export failed',

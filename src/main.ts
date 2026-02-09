@@ -5,6 +5,7 @@
 import { store } from './store.ts';
 import { hasStoredWallet } from './wallet.ts';
 import { loadConnection } from './qr-scanner.ts';
+import { startIdleLock, stopIdleLock } from './idle-lock.ts';
 import type { AppView } from './types.ts';
 
 // View modules (lazy imported for code splitting)
@@ -28,6 +29,14 @@ function render() {
 
   // Cleanup previous view
   cleanupView(currentView);
+
+  // Manage idle lock based on wallet state
+  const walletUnlocked = store.getState().wallet.unlocked;
+  if (walletUnlocked) {
+    startIdleLock();
+  } else {
+    stopIdleLock();
+  }
 
   // Render new view
   currentView = view;
