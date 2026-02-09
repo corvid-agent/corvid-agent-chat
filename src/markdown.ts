@@ -2,6 +2,7 @@
  * Lightweight markdown renderer
  * Converts markdown to HTML for message display
  */
+import { escapeHtml } from './utils.ts';
 
 export function renderMarkdown(text: string): string {
   // Escape HTML first
@@ -61,12 +62,4 @@ export function renderMarkdown(text: string): string {
   html = html.replace(/<\/blockquote><br>/g, '</blockquote>');
 
   return html;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

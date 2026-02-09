@@ -5,6 +5,7 @@
 import { Html5Qrcode } from 'html5-qrcode';
 import { parsePSKExchangeURI } from '@corvidlabs/ts-algochat';
 import type { AgentConnection } from './types.ts';
+import { bufferToBase64, base64ToBuffer } from './utils.ts';
 
 const AGENT_STORAGE_KEY = 'corvid-agent-connection';
 
@@ -157,23 +158,4 @@ export function loadConnection(): AgentConnection | null {
  */
 export function clearConnection(): void {
   localStorage.removeItem(AGENT_STORAGE_KEY);
-}
-
-// ── Helpers ──
-
-function bufferToBase64(buf: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < buf.length; i++) {
-    binary += String.fromCharCode(buf[i]!);
-  }
-  return btoa(binary);
-}
-
-function base64ToBuffer(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const buf = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    buf[i] = binary.charCodeAt(i);
-  }
-  return buf;
 }
