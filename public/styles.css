@@ -164,6 +164,8 @@ html, body {
 .msg--status .msg__prompt { color: var(--accent-amber); }
 .msg--status { opacity: 0.7; font-style: italic; }
 .msg__text { color: #c9d1d9; }
+.msg__status[data-status="sending"] { opacity: 0.5; }
+.msg__status[data-status="failed"] { color: var(--accent-red); }
 
 /* Copy button */
 .msg__copy {

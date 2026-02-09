@@ -10,9 +10,17 @@ import type { ChatMessage } from '../types.ts';
 import { escapeHtml, shortenAddress } from '../utils.ts';
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 
+/** How often to check agent online status and wallet balance (ms) */
+const STATUS_CHECK_INTERVAL_MS = 30_000;
+/** Max height for auto-resizing textarea (px) */
+const INPUT_MAX_HEIGHT_PX = 200;
+/** Duration to show copy confirmation before reverting (ms) */
+const COPY_FEEDBACK_MS = 1_500;
+
 let outputEl: HTMLElement | null = null;
 let inputEl: HTMLTextAreaElement | null = null;
 let unsubMessages: (() => void) | null = null;
+let unsubPollErrors: (() => void) | null = null;
 
 export function renderChat(): string {
   const state = store.getState();
@@ -103,6 +111,29 @@ export function bindChatEvents(): void {
   messaging.startPolling();
   store.setPolling(true);
 
+  // Subscribe to poll errors for connection status indicator
+  unsubPollErrors = messaging.onPollError((error) => {
+    if (error) {
+      // Show error state in connection bar
+      if (pollDot) {
+        pollDot.className = 'status-dot status-dot--red';
+      }
+      if (connectionText) {
+        const retries = messaging.consecutiveErrors;
+        connectionText.textContent = `Connection lost (retry ${retries}...)`;
+      }
+    } else {
+      // Recovered
+      if (pollDot) {
+        pollDot.className = 'status-dot status-dot--green';
+      }
+      if (connectionText) {
+        connectionText.textContent = 'Connected';
+      }
+      showToast('Connection recovered', 'success');
+    }
+  });
+
   // Update connection status
   const updateStatus = async () => {
     try {
@@ -127,7 +158,7 @@ export function bindChatEvents(): void {
   };
 
   updateStatus();
-  const statusTimer = setInterval(updateStatus, 30_000);
+  const statusTimer = setInterval(updateStatus, STATUS_CHECK_INTERVAL_MS);
 
   // Send message
   const sendMessage = async () => {
@@ -185,7 +216,7 @@ export function bindChatEvents(): void {
     if (!inputEl) return;
     // Auto-resize
     inputEl.style.height = 'auto';
-    inputEl.style.height = `${Math.min(inputEl.scrollHeight, 200)}px`;
+    inputEl.style.height = `${Math.min(inputEl.scrollHeight, INPUT_MAX_HEIGHT_PX)}px`;
     updateSendButton();
   });
 
@@ -249,9 +280,9 @@ function appendMessage(msg: ChatMessage): void {
   const prompt =
     msg.direction === 'sent' ? '[you] ' : '[agent] ';
   const statusBadge = msg.status === 'sending'
-    ? ' <span style="opacity:0.5">(sending...)</span>'
+    ? ' <span class="msg__status" data-status="sending">(sending...)</span>'
     : msg.status === 'failed'
-      ? ' <span style="color:var(--accent-red)">(failed)</span>'
+      ? ' <span class="msg__status" data-status="failed">(failed)</span>'
       : '';
 
   div.innerHTML = `
@@ -267,7 +298,7 @@ function appendMessage(msg: ChatMessage): void {
       if (copyBtn) copyBtn.textContent = '✓';
       setTimeout(() => {
         if (copyBtn) copyBtn.textContent = 'CP';
-      }, 1500);
+      }, COPY_FEEDBACK_MS);
     });
   });
 
@@ -279,13 +310,13 @@ function updateMessageEl(id: string, status: ChatMessage['status']): void {
   const el = document.getElementById(`msg-${id}`);
   if (!el) return;
 
-  const statusSpan = el.querySelector('.msg__text span[style]');
+  const statusSpan = el.querySelector('.msg__status');
   if (statusSpan) {
     if (status === 'confirmed') {
       statusSpan.remove();
     } else if (status === 'failed') {
-      statusSpan.outerHTML =
-        ' <span style="color:var(--accent-red)">(failed)</span>';
+      statusSpan.setAttribute('data-status', 'failed');
+      statusSpan.textContent = '(failed)';
     }
   }
 }
@@ -313,6 +344,8 @@ function hideThinking(): void {
 export function cleanupChat(): void {
   unsubMessages?.();
   unsubMessages = null;
+  unsubPollErrors?.();
+  unsubPollErrors = null;
   messaging.stopPolling();
 
   const cleanup = (window as unknown as Record<string, unknown>).__chatCleanup;
