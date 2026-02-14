@@ -345,6 +345,10 @@ export class MessagingService {
         const txns = response.transactions ?? [];
         nextToken = response['next-token'];
 
+        if (txns.length > 0) {
+          console.debug(`[poll] ${txns.length} txns from ${agentAddress.slice(0, 8)}… (minRound=${this.lastRound + 1})`);
+        }
+
         for (const tx of txns) {
           // Only payment transactions with notes, sent to us
           if (tx['tx-type'] !== 'pay' || !tx.note) continue;
@@ -357,17 +361,21 @@ export class MessagingService {
           const noteBytes = base64ToBuffer(tx.note);
 
           // Check PSK protocol
-          if (!isPSKMessage(noteBytes)) continue;
+          if (!isPSKMessage(noteBytes)) {
+            console.debug(`[poll] txid=${tx.id.slice(0, 8)}… not a PSK message (${noteBytes.length} bytes)`);
+            continue;
+          }
 
           try {
             const envelope = decodePSKEnvelope(noteBytes);
+            console.debug(`[poll] PSK envelope txid=${tx.id.slice(0, 8)}… counter=${envelope.ratchetCounter}`);
 
             // Validate counter
             if (
               !validateCounter(this.pskState, envelope.ratchetCounter)
             ) {
               console.warn(
-                `Rejected message with counter ${envelope.ratchetCounter}`
+                `Rejected message with counter ${envelope.ratchetCounter} (peerLast=${this.pskState.peerLastCounter})`
               );
               continue;
             }
@@ -386,7 +394,11 @@ export class MessagingService {
               currentPSK
             );
 
-            if (!decrypted) continue;
+            if (!decrypted) {
+              console.warn(`[poll] decryption failed for txid=${tx.id.slice(0, 8)}…`);
+              continue;
+            }
+            console.debug(`[poll] decrypted message: ${decrypted.text.slice(0, 60)}…`);
 
             // Cache agent's encryption key
             if (!this.agentEncryptionKey && envelope.senderPublicKey) {
