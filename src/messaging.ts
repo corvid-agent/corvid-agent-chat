@@ -22,6 +22,7 @@ import {
 } from '@corvidlabs/ts-algochat';
 import type { AgentConnection, ChatMessage } from './types.ts';
 import { base64ToBuffer } from './utils.ts';
+import { wrapWithDeviceName, parseDeviceEnvelope } from './device-name.ts';
 
 const PSK_STATE_KEY = 'corvid-psk-state';
 const LAST_ROUND_KEY = 'corvid-last-round';
@@ -218,6 +219,9 @@ export class MessagingService {
       throw new Error('Service not initialized');
     }
 
+    // Wrap content with device name envelope
+    const wrappedContent = wrapWithDeviceName(content);
+
     // Advance send counter
     const { counter, state: newState } = advanceSendCounter(this.pskState);
     this.pskState = newState;
@@ -235,7 +239,7 @@ export class MessagingService {
 
     // Encrypt
     const envelope = encryptPSKMessage(
-      content,
+      wrappedContent,
       this.chatAccount.encryptionKeys.publicKey,
       recipientPubKey,
       currentPSK,
@@ -600,16 +604,20 @@ export class MessagingService {
 
           this.trackProcessedTxid(tx.id);
 
+          // Parse device envelope from cross-device message
+          const { deviceName, content: unwrappedContent } = parseDeviceEnvelope(decrypted.text);
+
           // Emit as a sent message from another device
           const message: ChatMessage = {
             id: tx.id,
-            content: decrypted.text,
+            content: unwrappedContent,
             direction: 'sent',
             timestamp: new Date(
               (tx.roundTime ?? Math.floor(Date.now() / 1000)) * 1000
             ),
             status: 'confirmed',
             txid: tx.id,
+            deviceName,
           };
 
           for (const cb of this.callbacks) {

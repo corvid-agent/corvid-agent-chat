@@ -9,6 +9,7 @@ import { showToast } from '../toast.ts';
 import { escapeHtml } from '../utils.ts';
 import { deleteDatabase } from '../db.ts';
 import { getIdleTimeout, setIdleTimeout, startIdleLock } from '../idle-lock.ts';
+import { getDeviceName, setDeviceName } from '../device-name.ts';
 
 export function renderSettings(): string {
   const state = store.getState();
@@ -22,6 +23,7 @@ export function renderSettings(): string {
   const agentAddr = agent?.address ?? '';
   const network = agent?.network ?? 'mainnet';
   const idleTimeoutMin = Math.round(getIdleTimeout() / 60_000);
+  const currentDeviceName = getDeviceName() ?? '';
 
   return `
     <div class="header">
@@ -62,6 +64,15 @@ export function renderSettings(): string {
             <span style="font-size:0.75rem;color:var(--text-secondary)">minutes</span>
           </div>
           <div class="form-hint">Wallet locks automatically after inactivity</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Device name</label>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input type="text" id="device-name" class="form-input"
+              value="${escapeHtml(currentDeviceName)}" placeholder="e.g. mac, phone"
+              maxlength="16" style="width:10rem">
+          </div>
+          <div class="form-hint">Identifies this device in multi-device chat</div>
         </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           <button id="btn-export-mnemonic" class="btn btn--secondary">
@@ -162,6 +173,18 @@ export function bindSettingsEvents(): void {
     } else {
       idleInput.value = String(Math.round(getIdleTimeout() / 60_000));
       showToast('Timeout must be 1-120 minutes', 'error');
+    }
+  });
+
+  // Device name setting
+  const deviceNameInput = document.getElementById('device-name') as HTMLInputElement | null;
+  deviceNameInput?.addEventListener('change', () => {
+    const val = deviceNameInput.value.trim();
+    if (setDeviceName(val)) {
+      showToast(val ? `Device name set to "${val}"` : 'Device name cleared', 'info');
+    } else {
+      deviceNameInput.value = getDeviceName() ?? '';
+      showToast('Invalid name (letters, numbers, hyphens, underscores, max 16)', 'error');
     }
   });
 

@@ -25,6 +25,7 @@ export interface ChatMessage {
   timestamp: Date;
   status: 'sending' | 'sent' | 'confirmed' | 'failed';
   txid?: string;
+  deviceName?: string;
 }
 
 export interface AppState {

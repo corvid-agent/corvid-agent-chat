@@ -9,6 +9,7 @@ import { showToast } from '../toast.ts';
 import type { ChatMessage } from '../types.ts';
 import { escapeHtml, shortenAddress } from '../utils.ts';
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
+import { getDeviceName } from '../device-name.ts';
 
 /** How often to check agent online status and wallet balance (ms) */
 const STATUS_CHECK_INTERVAL_MS = 30_000;
@@ -174,6 +175,7 @@ export function bindChatEvents(): void {
       direction: 'sent',
       timestamp: new Date(),
       status: 'sending',
+      deviceName: getDeviceName() ?? undefined,
     };
 
     store.addMessage(outMsg);
@@ -277,8 +279,16 @@ function appendMessage(msg: ChatMessage): void {
   div.className = `msg msg--${msg.direction === 'sent' ? 'outbound' : 'inbound'}`;
   div.id = `msg-${msg.id}`;
 
-  const prompt =
-    msg.direction === 'sent' ? '[you] ' : '[agent] ';
+  let prompt: string;
+  if (msg.direction === 'received') {
+    prompt = '[agent] ';
+  } else if (msg.deviceName) {
+    prompt = `[you@${escapeHtml(msg.deviceName)}] `;
+  } else if (getDeviceName()) {
+    prompt = `[you@${escapeHtml(getDeviceName()!)}] `;
+  } else {
+    prompt = '[you] ';
+  }
   const statusBadge = msg.status === 'sending'
     ? ' <span class="msg__status" data-status="sending">(sending...)</span>'
     : msg.status === 'failed'

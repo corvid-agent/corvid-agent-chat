@@ -5,7 +5,7 @@
 import type { ChatMessage } from './types.ts';
 
 const DB_NAME = 'corvid-chat';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const MESSAGES_STORE = 'messages';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -49,6 +49,7 @@ interface StoredMessage {
   timestamp: number; // epoch ms (IndexedDB can't sort Date objects reliably)
   status: ChatMessage['status'];
   txid?: string;
+  deviceName?: string;
 }
 
 function toStored(msg: ChatMessage, agentAddress: string): StoredMessage {
@@ -60,6 +61,7 @@ function toStored(msg: ChatMessage, agentAddress: string): StoredMessage {
     timestamp: msg.timestamp.getTime(),
     status: msg.status,
     txid: msg.txid,
+    deviceName: msg.deviceName,
   };
 }
 
@@ -71,6 +73,7 @@ function fromStored(stored: StoredMessage): ChatMessage {
     timestamp: new Date(stored.timestamp),
     status: stored.status,
     txid: stored.txid,
+    deviceName: stored.deviceName,
   };
 }
 
