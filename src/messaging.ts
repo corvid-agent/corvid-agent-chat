@@ -36,15 +36,15 @@ const MIN_TX_AMOUNT_MICROALGO = 1_000;
 
 type MessageCallback = (message: ChatMessage) => void;
 
-// Indexer response types (subset)
+// Indexer response types — algosdk v3 uses camelCase field names
 interface IndexerTransaction {
   id: string;
   sender: string;
-  'tx-type': string;
+  txType: string;
   note?: string;
-  'confirmed-round'?: number;
-  'round-time'?: number;
-  'payment-transaction'?: {
+  confirmedRound?: number;
+  roundTime?: number;
+  paymentTransaction?: {
     receiver: string;
     amount: number;
   };
@@ -52,7 +52,7 @@ interface IndexerTransaction {
 
 interface IndexerSearchResponse {
   transactions: IndexerTransaction[];
-  'next-token'?: string;
+  nextToken?: string;
 }
 
 export class MessagingService {
@@ -343,7 +343,7 @@ export class MessagingService {
         const response =
           (await query.do()) as unknown as IndexerSearchResponse;
         const txns = response.transactions ?? [];
-        nextToken = response['next-token'];
+        nextToken = response.nextToken;
 
         if (txns.length > 0) {
           console.debug(`[poll] ${txns.length} txns from ${agentAddress.slice(0, 8)}… (minRound=${this.lastRound + 1})`);
@@ -351,9 +351,9 @@ export class MessagingService {
 
         for (const tx of txns) {
           // Only payment transactions with notes, sent to us
-          if (tx['tx-type'] !== 'pay' || !tx.note) continue;
+          if (tx.txType !== 'pay' || !tx.note) continue;
           if (tx.sender !== agentAddress) continue;
-          if (tx['payment-transaction']?.receiver !== myAddress) continue;
+          if (tx.paymentTransaction?.receiver !== myAddress) continue;
 
           // Deduplication
           if (this.processedTxids.has(tx.id)) continue;
@@ -420,7 +420,7 @@ export class MessagingService {
               content: decrypted.text,
               direction: 'received',
               timestamp: new Date(
-                (tx['round-time'] ?? Math.floor(Date.now() / 1000)) * 1000
+                (tx.roundTime ?? Math.floor(Date.now() / 1000)) * 1000
               ),
               status: 'confirmed',
               txid: tx.id,
@@ -438,7 +438,7 @@ export class MessagingService {
             console.error(`Error processing message ${tx.id}:`, err);
           }
 
-          const txRound = Number(tx['confirmed-round'] ?? 0);
+          const txRound = Number(tx.confirmedRound ?? 0);
           if (txRound > maxRound) {
             maxRound = txRound;
           }
