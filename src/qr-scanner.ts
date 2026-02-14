@@ -29,31 +29,47 @@ export async function startScanning(
 
   scanner = new Html5Qrcode(elementId);
 
+  const scanConfig = {
+    fps: 10,
+    qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+      const size = Math.floor(minEdge * 0.7);
+      return { width: size, height: size };
+    },
+  };
+
+  const onSuccess = (decodedText: string) => {
+    // Try to parse as AlgoChat PSK URI
+    const result = parseScanResult(decodedText);
+    if (result.success && result.connection) {
+      // Save connection and stop scanning
+      saveConnection(result.connection);
+      stopScanning().catch(console.error);
+    }
+    onResult(result);
+  };
+
+  // Try back camera first, fall back to any available camera
   try {
     await scanner.start(
       { facingMode: 'environment' },
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1,
-      },
-      (decodedText: string) => {
-        // Try to parse as AlgoChat PSK URI
-        const result = parseScanResult(decodedText);
-        if (result.success && result.connection) {
-          // Save connection and stop scanning
-          saveConnection(result.connection);
-          stopScanning().catch(console.error);
-        }
-        onResult(result);
-      },
-      // Ignore scan failures (expected while searching)
+      scanConfig,
+      onSuccess,
       () => {}
     );
-  } catch (err) {
-    const errorMsg =
-      err instanceof Error ? err.message : 'Camera access denied';
-    onResult({ success: false, error: errorMsg });
+  } catch {
+    try {
+      await scanner.start(
+        { facingMode: 'user' },
+        scanConfig,
+        onSuccess,
+        () => {}
+      );
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error ? err.message : 'Camera access denied';
+      onResult({ success: false, error: errorMsg });
+    }
   }
 }
 

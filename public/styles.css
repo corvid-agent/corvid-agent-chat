@@ -324,7 +324,7 @@ html, body {
 .qr-scanner {
     width: 100%;
     max-width: 300px;
-    aspect-ratio: 1;
+    min-height: 200px;
     margin: 0 auto 1rem;
     border-radius: var(--radius);
     overflow: hidden;
