@@ -480,10 +480,20 @@ export class MessagingService {
 
   // ── State persistence ──
 
+  /** Compute a short fingerprint of the PSK for change detection. */
+  private pskFingerprint(): string {
+    if (!this.connection) return '';
+    // First 8 bytes as hex — enough to detect PSK changes
+    return Array.from(this.connection.psk.slice(0, 8))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
   private savePSKState(): void {
     if (!this.connection) return;
     const key = `${PSK_STATE_KEY}-${this.connection.address}`;
     const data = {
+      pskFingerprint: this.pskFingerprint(),
       sendCounter: this.pskState.sendCounter,
       peerLastCounter: this.pskState.peerLastCounter,
       seenCounters: [...this.pskState.seenCounters],
@@ -498,6 +508,20 @@ export class MessagingService {
     if (!raw) return;
     try {
       const data = JSON.parse(raw);
+
+      // If the PSK changed (new QR scanned) or state predates fingerprinting, discard stale state
+      if (data.pskFingerprint !== this.pskFingerprint()) {
+        console.info('PSK changed — resetting state for fresh connection');
+        this.pskState = createPSKState();
+        this.lastRound = 0;
+        this.processedTxids.clear();
+        // Clear stale persisted data
+        localStorage.removeItem(key);
+        localStorage.removeItem(`${LAST_ROUND_KEY}-${this.connection.address}`);
+        localStorage.removeItem(`${PROCESSED_TXIDS_KEY}-${this.connection.address}`);
+        return;
+      }
+
       this.pskState = {
         sendCounter: data.sendCounter ?? 0,
         peerLastCounter: data.peerLastCounter ?? 0,
