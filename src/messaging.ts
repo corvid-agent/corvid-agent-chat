@@ -107,11 +107,13 @@ export class MessagingService {
 
     this.algodClient = new algosdk.Algodv2(
       networkConfig.algodToken,
-      networkConfig.algodUrl
+      networkConfig.algodUrl,
+      ''
     );
     this.indexerClient = new algosdk.Indexer(
       networkConfig.indexerToken ?? '',
-      networkConfig.indexerUrl ?? ''
+      networkConfig.indexerUrl ?? '',
+      ''
     );
     this.algorandService = new AlgorandService({
       algodToken: networkConfig.algodToken,
