@@ -102,6 +102,10 @@ export class MessagingService {
     this.chatAccount = account;
     this.connection = connection;
 
+    // Diagnostic: log PSK fingerprint on init
+    const pskFp = Array.from(connection.psk.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('');
+    console.info(`[messaging] initialize: address=${connection.address.slice(0, 8)}… pskFp=${pskFp} pskLen=${connection.psk.length} network=${connection.network}`);
+
     const networkConfig =
       connection.network === 'mainnet' ? mainnet() : testnet();
 
@@ -218,6 +222,11 @@ export class MessagingService {
     // Derive PSK at current counter
     const currentPSK = derivePSKAtCounter(this.connection.psk, counter);
 
+    // Diagnostic: log PSK fingerprint and counter so we can compare with server
+    const pskFp = Array.from(this.connection.psk.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const derivedFp = Array.from(currentPSK.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('');
+    console.debug(`[send] PSK fingerprint=${pskFp} counter=${counter} derivedPSK=${derivedFp} pskLen=${this.connection.psk.length}`);
+
     // Get recipient's encryption key
     const recipientPubKey = await this.getAgentPublicKey();
 
@@ -232,6 +241,7 @@ export class MessagingService {
 
     // Encode to bytes
     const note = encodePSKEnvelope(envelope);
+    console.debug(`[send] note=${note.length}b recipientKey=${Array.from(recipientPubKey.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('')} senderKey=${Array.from(this.chatAccount.encryptionKeys.publicKey.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('')}`);
 
     // Build, sign, and submit transaction
     const params = await this.algodClient.getTransactionParams().do();
