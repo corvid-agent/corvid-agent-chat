@@ -36,12 +36,12 @@ const MIN_TX_AMOUNT_MICROALGO = 1_000;
 
 type MessageCallback = (message: ChatMessage) => void;
 
-// Indexer response types — algosdk v3 uses camelCase field names
+// Indexer response types — algosdk v3 uses camelCase and returns note as Uint8Array
 interface IndexerTransaction {
   id: string;
   sender: string;
   txType: string;
-  note?: string;
+  note?: Uint8Array;
   confirmedRound?: number;
   roundTime?: number;
   paymentTransaction?: {
@@ -360,7 +360,10 @@ export class MessagingService {
           // Deduplication
           if (this.processedTxids.has(tx.id)) continue;
 
-          const noteBytes = base64ToBuffer(tx.note);
+          // algosdk v3 returns note as Uint8Array, not base64 string
+          const noteBytes = tx.note instanceof Uint8Array
+            ? tx.note
+            : base64ToBuffer(tx.note as unknown as string);
 
           // Check PSK protocol
           if (!isPSKMessage(noteBytes)) {
