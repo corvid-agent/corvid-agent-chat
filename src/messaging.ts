@@ -25,6 +25,7 @@ import { base64ToBuffer } from './utils.ts';
 
 const PSK_STATE_KEY = 'corvid-psk-state';
 const LAST_ROUND_KEY = 'corvid-last-round';
+const SENT_LAST_ROUND_KEY = 'corvid-sent-last-round';
 const PROCESSED_TXIDS_KEY = 'corvid-processed-txids';
 const POLL_INTERVAL_MS = 10_000;
 const POLL_INTERVAL_MAX_MS = 120_000;
@@ -63,6 +64,7 @@ export class MessagingService {
   private connection: AgentConnection | null = null;
   private pskState: PSKState = createPSKState();
   private lastRound = 0;
+  private lastSentRound = 0;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private callbacks: Set<MessageCallback> = new Set();
   private processedTxids: Set<string> = new Set();
@@ -129,6 +131,7 @@ export class MessagingService {
     // Load persisted state
     this.loadPSKState();
     this.loadLastRound();
+    this.loadLastSentRound();
     this.loadProcessedTxids();
   }
 
@@ -258,6 +261,8 @@ export class MessagingService {
       .sendRawTransaction(signedTxn)
       .do();
 
+    // Track locally sent txid so the cross-device poll skips it
+    this.trackProcessedTxid(txid as string);
     this.savePSKState();
 
     return txid as string;
@@ -305,6 +310,7 @@ export class MessagingService {
     this.processedTxids.clear();
     this._errorCallbacks.clear();
     this._consecutiveErrors = 0;
+    this.lastSentRound = 0;
   }
 
   // ── Private ──
@@ -469,6 +475,9 @@ export class MessagingService {
       this.saveLastRound();
       this.savePSKState();
     }
+
+    // Also poll for messages sent from our wallet by other devices
+    await this.pollSentMessages();
   }
 
   private trackProcessedTxid(txid: string): void {
@@ -502,6 +511,127 @@ export class MessagingService {
     } catch {
       // Reset on parse error
       this.processedTxids = new Set();
+    }
+  }
+
+  /**
+   * Poll for PSK messages sent FROM our wallet TO the agent by other devices.
+   * Decrypts as sender, emits as 'sent' messages, and syncs the send counter.
+   */
+  private async pollSentMessages(): Promise<void> {
+    if (!this.chatAccount || !this.connection || !this.indexerClient) return;
+
+    const myAddress = this.chatAccount.address;
+    const agentAddress = this.connection.address;
+    let maxRound = this.lastSentRound;
+    let nextToken: string | undefined;
+    let counterSynced = false;
+
+    do {
+      let query = this.indexerClient
+        .searchForTransactions()
+        .address(myAddress)
+        .addressRole('sender')
+        .limit(50);
+
+      if (this.lastSentRound > 0) {
+        query = query.minRound(this.lastSentRound + 1);
+      }
+
+      if (nextToken) {
+        query = query.nextToken(nextToken);
+      }
+
+      const response =
+        (await query.do()) as unknown as IndexerSearchResponse;
+      const txns = response.transactions ?? [];
+      nextToken = response.nextToken;
+
+      for (const tx of txns) {
+        // Only payment transactions with notes, sent by us to the agent
+        if (tx.txType !== 'pay' || !tx.note) continue;
+        if (tx.sender !== myAddress) continue;
+        if (tx.paymentTransaction?.receiver !== agentAddress) continue;
+
+        // Skip already-processed (including locally sent by this device)
+        if (this.processedTxids.has(tx.id)) continue;
+
+        const noteBytes = tx.note instanceof Uint8Array
+          ? tx.note
+          : base64ToBuffer(tx.note as unknown as string);
+
+        if (!isPSKMessage(noteBytes)) continue;
+
+        const txRound = Number(tx.confirmedRound ?? 0);
+        if (txRound > maxRound) maxRound = txRound;
+
+        try {
+          const envelope = decodePSKEnvelope(noteBytes);
+
+          // Derive PSK at this counter
+          const currentPSK = derivePSKAtCounter(
+            this.connection.psk,
+            envelope.ratchetCounter
+          );
+
+          // Decrypt as sender (auto-detected by decryptPSKMessage since
+          // our publicKey matches envelope.senderPublicKey)
+          const decrypted = decryptPSKMessage(
+            envelope,
+            this.chatAccount.encryptionKeys.privateKey,
+            this.chatAccount.encryptionKeys.publicKey,
+            currentPSK
+          );
+
+          if (!decrypted) {
+            this.trackProcessedTxid(tx.id);
+            continue;
+          }
+
+          // Sync send counter — ensure we don't reuse a counter from another device
+          const nextNeeded = envelope.ratchetCounter + 1;
+          if (nextNeeded > this.pskState.sendCounter) {
+            this.pskState.sendCounter = nextNeeded;
+            counterSynced = true;
+            console.info(
+              `[cross-device] Synced sendCounter to ${nextNeeded} (saw counter ${envelope.ratchetCounter})`
+            );
+          }
+
+          this.trackProcessedTxid(tx.id);
+
+          // Emit as a sent message from another device
+          const message: ChatMessage = {
+            id: tx.id,
+            content: decrypted.text,
+            direction: 'sent',
+            timestamp: new Date(
+              (tx.roundTime ?? Math.floor(Date.now() / 1000)) * 1000
+            ),
+            status: 'confirmed',
+            txid: tx.id,
+          };
+
+          for (const cb of this.callbacks) {
+            try {
+              cb(message);
+            } catch (err) {
+              console.error('Message callback error:', err);
+            }
+          }
+        } catch (err) {
+          this.trackProcessedTxid(tx.id);
+          console.error(`Error processing cross-device message ${tx.id}:`, err);
+        }
+      }
+    } while (nextToken);
+
+    if (maxRound > this.lastSentRound) {
+      this.lastSentRound = maxRound;
+      this.saveLastSentRound();
+    }
+    if (counterSynced) {
+      this.savePSKState();
     }
   }
 
@@ -541,10 +671,12 @@ export class MessagingService {
         console.info('PSK changed — resetting state for fresh connection');
         this.pskState = createPSKState();
         this.lastRound = 0;
+        this.lastSentRound = 0;
         this.processedTxids.clear();
         // Clear stale persisted data
         localStorage.removeItem(key);
         localStorage.removeItem(`${LAST_ROUND_KEY}-${this.connection.address}`);
+        localStorage.removeItem(`${SENT_LAST_ROUND_KEY}-${this.connection.address}`);
         localStorage.removeItem(`${PROCESSED_TXIDS_KEY}-${this.connection.address}`);
         return;
       }
@@ -572,6 +704,21 @@ export class MessagingService {
     const raw = localStorage.getItem(key);
     if (raw) {
       this.lastRound = parseInt(raw, 10) || 0;
+    }
+  }
+
+  private saveLastSentRound(): void {
+    if (!this.connection) return;
+    const key = `${SENT_LAST_ROUND_KEY}-${this.connection.address}`;
+    localStorage.setItem(key, String(this.lastSentRound));
+  }
+
+  private loadLastSentRound(): void {
+    if (!this.connection) return;
+    const key = `${SENT_LAST_ROUND_KEY}-${this.connection.address}`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      this.lastSentRound = parseInt(raw, 10) || 0;
     }
   }
 }
