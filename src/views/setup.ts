@@ -123,8 +123,8 @@ export function bindSetupEvents(): void {
       document.getElementById('create-password-confirm') as HTMLInputElement
     )?.value;
 
-    if (!password || password.length < 4) {
-      showToast('Password must be at least 4 characters', 'error');
+    if (!password || password.length < 8) {
+      showToast('Password must be at least 8 characters', 'error');
       return;
     }
     if (password !== confirm) {
@@ -171,8 +171,8 @@ export function bindSetupEvents(): void {
       showToast('Please enter a valid 25-word mnemonic', 'error');
       return;
     }
-    if (!password || password.length < 4) {
-      showToast('Password must be at least 4 characters', 'error');
+    if (!password || password.length < 8) {
+      showToast('Password must be at least 8 characters', 'error');
       return;
     }
 

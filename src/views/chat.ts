@@ -7,7 +7,7 @@ import { getAccount } from '../wallet.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { showToast } from '../toast.ts';
 import type { ChatMessage } from '../types.ts';
-import { escapeHtml, shortenAddress } from '../utils.ts';
+import { escapeHtml, shortenAddress, formatTime } from '../utils.ts';
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 import { getDeviceName } from '../device-name.ts';
 
@@ -22,6 +22,7 @@ let outputEl: HTMLElement | null = null;
 let inputEl: HTMLTextAreaElement | null = null;
 let unsubMessages: (() => void) | null = null;
 let unsubPollErrors: (() => void) | null = null;
+let chatCleanupFn: (() => void) | null = null;
 
 export function renderChat(): string {
   const state = store.getState();
@@ -63,6 +64,8 @@ export function renderChat(): string {
         </div>
       </div>
     </div>
+
+    <button id="scroll-to-bottom" class="scroll-bottom-btn" title="Scroll to bottom" style="display:none">&#x2193;</button>
 
     <div class="input-bar">
       <textarea id="chat-input" class="input-bar__field" rows="1"
@@ -238,6 +241,19 @@ export function bindChatEvents(): void {
       store.setView('settings');
     });
 
+  // Scroll-to-bottom button
+  const scrollBtn = document.getElementById('scroll-to-bottom');
+  if (outputEl && scrollBtn) {
+    outputEl.addEventListener('scroll', () => {
+      if (!outputEl) return;
+      const distFromBottom = outputEl.scrollHeight - outputEl.scrollTop - outputEl.clientHeight;
+      scrollBtn.style.display = distFromBottom > 120 ? '' : 'none';
+    });
+    scrollBtn.addEventListener('click', () => {
+      if (outputEl) outputEl.scrollTop = outputEl.scrollHeight;
+    });
+  }
+
   // Wallet badge click - copy address
   document
     .getElementById('wallet-badge')
@@ -262,7 +278,7 @@ export function bindChatEvents(): void {
   }
 
   // Store cleanup function for when view changes
-  (window as unknown as Record<string, unknown>).__chatCleanup = () => {
+  chatCleanupFn = () => {
     clearInterval(statusTimer);
   };
 }
@@ -292,24 +308,48 @@ function appendMessage(msg: ChatMessage): void {
   const statusBadge = msg.status === 'sending'
     ? ' <span class="msg__status" data-status="sending">(sending...)</span>'
     : msg.status === 'failed'
-      ? ' <span class="msg__status" data-status="failed">(failed)</span>'
+      ? ' <span class="msg__status" data-status="failed">(failed) </span><button class="msg__retry" title="Retry">retry</button>'
       : '';
 
+  const timeStr = formatTime(msg.timestamp);
+  const txLink = msg.txid
+    ? ` <a class="msg__txlink" href="https://allo.info/tx/${msg.txid}" target="_blank" rel="noopener" title="View on explorer">&#x26d3;</a>`
+    : '';
+
   div.innerHTML = `
+    <span class="msg__time">${timeStr}</span>
     <span class="msg__prompt">${prompt}</span>
-    <span class="msg__text">${renderMarkdown(msg.content)}${statusBadge}</span>
-    <button class="msg__copy" title="Copy">CP</button>
+    <span class="msg__text">${renderMarkdown(msg.content)}${statusBadge}${txLink}</span>
+    <button class="msg__copy" title="Copy to clipboard">&#x2398;</button>
   `;
 
   // Copy button
   const copyBtn = div.querySelector('.msg__copy');
   copyBtn?.addEventListener('click', () => {
     navigator.clipboard.writeText(msg.content).then(() => {
-      if (copyBtn) copyBtn.textContent = '✓';
+      if (copyBtn) copyBtn.textContent = '\u2713';
       setTimeout(() => {
-        if (copyBtn) copyBtn.textContent = 'CP';
+        if (copyBtn) copyBtn.textContent = '\u2398';
       }, COPY_FEEDBACK_MS);
     });
+  });
+
+  // Retry button (for failed messages)
+  const retryBtn = div.querySelector('.msg__retry');
+  retryBtn?.addEventListener('click', async () => {
+    if (!msg.content) return;
+    try {
+      const txid = await messaging.sendMessage(msg.content);
+      store.updateMessageStatus(msg.id, 'confirmed', txid);
+      updateMessageEl(msg.id, 'confirmed');
+      dbUpdateStatus(msg.id, 'confirmed', txid);
+      showToast('Message resent', 'success');
+    } catch (err) {
+      showToast(
+        `Retry failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        'error'
+      );
+    }
   });
 
   outputEl.appendChild(div);
@@ -358,8 +398,8 @@ export function cleanupChat(): void {
   unsubPollErrors = null;
   messaging.stopPolling();
 
-  const cleanup = (window as unknown as Record<string, unknown>).__chatCleanup;
-  if (typeof cleanup === 'function') cleanup();
+  chatCleanupFn?.();
+  chatCleanupFn = null;
 
   outputEl = null;
   inputEl = null;

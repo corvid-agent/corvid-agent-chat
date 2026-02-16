@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, bufferToBase64, base64ToBuffer, shortenAddress } from './utils.ts';
+import { escapeHtml, bufferToBase64, base64ToBuffer, shortenAddress, formatTime } from './utils.ts';
 
 describe('escapeHtml', () => {
   it('escapes ampersands', () => {
@@ -12,8 +12,12 @@ describe('escapeHtml', () => {
     );
   });
 
-  it('escapes quotes', () => {
+  it('escapes double quotes', () => {
     expect(escapeHtml('"hello"')).toBe('&quot;hello&quot;');
+  });
+
+  it('escapes single quotes', () => {
+    expect(escapeHtml("it's")).toBe('it&#39;s');
   });
 
   it('returns empty string for empty input', () => {
@@ -72,5 +76,22 @@ describe('shortenAddress', () => {
   it('returns full address if short enough', () => {
     const short = 'ABCDE';
     expect(shortenAddress(short, 3, 3)).toBe('ABCDE');
+  });
+});
+
+describe('formatTime', () => {
+  it('formats morning time', () => {
+    const d = new Date(2026, 0, 15, 9, 5);
+    expect(formatTime(d)).toBe('09:05');
+  });
+
+  it('formats afternoon time', () => {
+    const d = new Date(2026, 0, 15, 14, 30);
+    expect(formatTime(d)).toBe('14:30');
+  });
+
+  it('formats midnight', () => {
+    const d = new Date(2026, 0, 15, 0, 0);
+    expect(formatTime(d)).toBe('00:00');
   });
 });

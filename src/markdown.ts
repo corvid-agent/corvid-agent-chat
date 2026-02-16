@@ -47,8 +47,14 @@ export function renderMarkdown(text: string): string {
   html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
   html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
 
-  // Ordered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+  // Ordered lists — use a marker to avoid <ul> wrapping consuming these <li>s
+  html = html.replace(/^\d+\. (.+)$/gm, '<oli>$1</oli>');
+  html = html.replace(/((?:<oli>.*<\/oli>\n?)+)/g, (match) => {
+    const items = match.replace(/<\/?oli>/g, (tag: string) =>
+      tag === '<oli>' ? '<li>' : '</li>'
+    );
+    return `<ol>${items}</ol>`;
+  });
 
   // Line breaks (preserve newlines)
   html = html.replace(/\n/g, '<br>');
@@ -59,6 +65,8 @@ export function renderMarkdown(text: string): string {
   html = html.replace(/<br><pre>/g, '<pre>');
   html = html.replace(/<\/ul><br>/g, '</ul>');
   html = html.replace(/<br><ul>/g, '<ul>');
+  html = html.replace(/<\/ol><br>/g, '</ol>');
+  html = html.replace(/<br><ol>/g, '<ol>');
   html = html.replace(/<\/blockquote><br>/g, '</blockquote>');
 
   return html;

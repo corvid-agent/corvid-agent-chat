@@ -66,8 +66,10 @@ describe('renderMarkdown', () => {
     expect(result).toContain('<li>item two</li>');
   });
 
-  it('renders ordered lists', () => {
+  it('renders ordered lists with <ol> wrapper', () => {
     const result = renderMarkdown('1. first\n2. second');
+    expect(result).toContain('<ol>');
+    expect(result).toContain('</ol>');
     expect(result).toContain('<li>first</li>');
     expect(result).toContain('<li>second</li>');
   });

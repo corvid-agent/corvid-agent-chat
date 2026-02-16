@@ -127,6 +127,37 @@ export function renderSettings(): string {
         `}
       </div>
 
+      <!-- Ecosystem Links -->
+      <div class="setup-card" style="max-width:100%;margin-top:1rem">
+        <div class="setup-card__title">Ecosystem</div>
+        <div class="ecosystem-links">
+          <a href="https://corvid-agent.github.io/" target="_blank" rel="noopener" class="eco-link">
+            <span class="eco-link__icon">&#x1F3E0;</span>
+            <span class="eco-link__text">Home</span>
+          </a>
+          <a href="https://corvid-agent.github.io/agent-dashboard/" target="_blank" rel="noopener" class="eco-link">
+            <span class="eco-link__icon">&#x1F4CA;</span>
+            <span class="eco-link__text">Dashboard</span>
+          </a>
+          <a href="https://corvid-agent.github.io/agent-profile/" target="_blank" rel="noopener" class="eco-link">
+            <span class="eco-link__icon">&#x1F464;</span>
+            <span class="eco-link__text">Profile</span>
+          </a>
+          <a href="https://corvid-agent.github.io/algo-explorer/" target="_blank" rel="noopener" class="eco-link">
+            <span class="eco-link__icon">&#x1F50D;</span>
+            <span class="eco-link__text">Explorer</span>
+          </a>
+          <a href="https://corvid-agent.github.io/bw-cinema/" target="_blank" rel="noopener" class="eco-link">
+            <span class="eco-link__icon">&#x1F3AC;</span>
+            <span class="eco-link__text">Cinema</span>
+          </a>
+          <a href="https://github.com/corvid-agent/corvid-agent-chat" target="_blank" rel="noopener" class="eco-link">
+            <span class="eco-link__icon">&#x2699;</span>
+            <span class="eco-link__text">Source</span>
+          </a>
+        </div>
+      </div>
+
       <!-- Danger Zone -->
       <div class="setup-card" style="max-width:100%;margin-top:1rem;border-color:rgba(255,51,85,0.3)">
         <div class="setup-card__title" style="color:var(--accent-red)">Danger Zone</div>
@@ -191,12 +222,45 @@ export function bindSettingsEvents(): void {
   // Export mnemonic
   document
     .getElementById('btn-export-mnemonic')
-    ?.addEventListener('click', async () => {
-      const password = prompt('Enter your wallet password to export mnemonic:');
-      if (!password) return;
+    ?.addEventListener('click', () => {
+      // Show a proper password modal instead of prompt()
+      const pwOverlay = document.createElement('div');
+      pwOverlay.className = 'modal-overlay';
+      pwOverlay.innerHTML = `
+        <div class="modal">
+          <div class="modal__title">Export Mnemonic</div>
+          <div class="form-group">
+            <label class="form-label">Wallet Password</label>
+            <input type="password" id="export-pw-input" class="form-input"
+              placeholder="Enter your wallet password..." autocomplete="current-password" autofocus>
+          </div>
+          <div class="modal__actions">
+            <button class="btn btn--secondary" id="export-pw-cancel">Cancel</button>
+            <button class="btn btn--primary" id="export-pw-confirm">Export</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(pwOverlay);
 
-      try {
-        const mnemonic = await exportMnemonic(password);
+      const pwInput = document.getElementById('export-pw-input') as HTMLInputElement;
+      pwInput?.focus();
+
+      const closeOverlay = () => pwOverlay.remove();
+      document.getElementById('export-pw-cancel')?.addEventListener('click', closeOverlay);
+      pwOverlay.addEventListener('click', (e) => { if (e.target === pwOverlay) closeOverlay(); });
+      const onEscPw = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') { closeOverlay(); document.removeEventListener('keydown', onEscPw); }
+      };
+      document.addEventListener('keydown', onEscPw);
+
+      const doExport = async () => {
+        const password = pwInput?.value;
+        if (!password) { showToast('Enter your password', 'error'); return; }
+        closeOverlay();
+        document.removeEventListener('keydown', onEscPw);
+
+        try {
+          const mnemonic = await exportMnemonic(password);
         // Show in a temporary modal-like display
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
@@ -244,12 +308,16 @@ export function bindSettingsEvents(): void {
           }
         };
         document.addEventListener('keydown', onEscape);
-      } catch (err) {
-        showToast(
-          err instanceof Error ? err.message : 'Export failed',
-          'error'
-        );
-      }
+        } catch (err) {
+          showToast(
+            err instanceof Error ? err.message : 'Export failed',
+            'error'
+          );
+        }
+      };
+
+      document.getElementById('export-pw-confirm')?.addEventListener('click', doExport);
+      pwInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doExport(); });
     });
 
   // Lock wallet

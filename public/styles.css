@@ -170,12 +170,38 @@ html, body {
 .msg__status[data-status="sending"] { opacity: 0.5; }
 .msg__status[data-status="failed"] { color: var(--accent-red); }
 
+/* Message timestamp */
+.msg__time {
+    font-size: 0.6rem; color: var(--text-tertiary);
+    font-family: var(--font-mono); margin-right: 0.4rem;
+    user-select: none; white-space: nowrap;
+}
+
+/* Transaction explorer link */
+.msg__txlink {
+    font-size: 0.65rem; color: var(--text-tertiary);
+    text-decoration: none; margin-left: 0.3rem;
+    transition: color 0.15s;
+}
+.msg__txlink:hover { color: var(--accent-cyan); }
+
+/* Retry button for failed messages */
+.msg__retry {
+    background: transparent; border: 1px solid var(--accent-amber);
+    color: var(--accent-amber); font-family: inherit;
+    font-size: 0.6rem; padding: 1px 6px;
+    border-radius: var(--radius-sm); cursor: pointer;
+    transition: background 0.15s;
+    text-transform: uppercase; letter-spacing: 0.04em;
+}
+.msg__retry:hover { background: var(--accent-amber-dim); }
+
 /* Copy button */
 .msg__copy {
     position: absolute; top: 0; right: 0;
     background: transparent; border: 1px solid #30363d;
     color: #484f58; font-family: inherit;
-    font-size: 0.7rem; padding: 1px 5px;
+    font-size: 0.8rem; padding: 1px 5px;
     border-radius: var(--radius-sm); cursor: pointer;
     transition: opacity 0.15s, color 0.15s;
 }
@@ -188,6 +214,19 @@ html, body {
     .msg__copy { opacity: 0.35; }
     .msg__copy:active { opacity: 1; }
 }
+
+/* Scroll to bottom button */
+.scroll-bottom-btn {
+    position: absolute; bottom: 80px; right: 1.5rem;
+    width: 32px; height: 32px;
+    background: var(--bg-raised); border: 1px solid var(--border-bright);
+    color: var(--accent-cyan); border-radius: 50%;
+    font-size: 1rem; cursor: pointer; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.scroll-bottom-btn:hover { background: var(--bg-hover); border-color: var(--accent-cyan); }
 
 /* Blinking cursor */
 .cursor {
@@ -471,13 +510,41 @@ html, body {
     justify-content: flex-end;
 }
 
+/* Ecosystem links */
+.ecosystem-links {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+}
+.eco-link {
+    display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+    padding: 0.6rem 0.3rem;
+    background: var(--bg-raised); border: 1px solid var(--border);
+    border-radius: var(--radius); text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+}
+.eco-link:hover { border-color: var(--accent-cyan); background: var(--bg-hover); }
+.eco-link__icon { font-size: 1.2rem; }
+.eco-link__text {
+    font-size: 0.65rem; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    font-family: var(--font-pixel);
+}
+.eco-link:hover .eco-link__text { color: var(--accent-cyan); }
+
 /* Responsive */
+@media (max-width: 768px) {
+    .ecosystem-links { grid-template-columns: repeat(3, 1fr); }
+    .input-bar__field { max-height: 150px; }
+}
 @media (max-width: 480px) {
     .header { padding: 0 0.75rem; }
     .terminal__output { padding: 0.75rem; }
     .input-bar { padding: 0.5rem 0.75rem; }
     .setup-view { padding: 1rem; }
     .header__title { font-size: 1rem; }
+    .msg__time { display: none; }
+    .ecosystem-links { grid-template-columns: repeat(2, 1fr); }
+    .input-bar__field { max-height: 120px; }
+    .scroll-bottom-btn { bottom: 70px; right: 0.75rem; }
 }
 
 /* Loading spinner */
