@@ -20,7 +20,7 @@ import {
   recordReceive,
   decryptPSKMessage,
 } from '@corvidlabs/ts-algochat';
-import type { AgentConnection, ChatMessage } from './types.ts';
+import type { Attachment, AgentConnection, ChatMessage } from './types.ts';
 import { base64ToBuffer } from './utils.ts';
 import { wrapWithDeviceName, parseDeviceEnvelope } from './device-name.ts';
 
@@ -214,13 +214,13 @@ export class MessagingService {
   /**
    * Send a message to the connected agent
    */
-  async sendMessage(content: string): Promise<string> {
+  async sendMessage(content: string, attachment?: Attachment): Promise<string> {
     if (!this.chatAccount || !this.connection || !this.algodClient) {
       throw new Error('Service not initialized');
     }
 
-    // Wrap content with device name envelope
-    const wrappedContent = wrapWithDeviceName(content);
+    // Wrap content with device name envelope (includes attachment if present)
+    const wrappedContent = wrapWithDeviceName(content, attachment);
 
     // Advance send counter
     const { counter, state: newState } = advanceSendCounter(this.pskState);
@@ -439,16 +439,21 @@ export class MessagingService {
             // Track processed
             this.trackProcessedTxid(tx.id);
 
+            // Parse device envelope for device name and attachment
+            const deviceEnvelope = parseDeviceEnvelope(decrypted.text);
+
             // Create message
             const message: ChatMessage = {
               id: tx.id,
-              content: decrypted.text,
+              content: deviceEnvelope.content,
               direction: 'received',
               timestamp: new Date(
                 (tx.roundTime ?? Math.floor(Date.now() / 1000)) * 1000
               ),
               status: 'confirmed',
               txid: tx.id,
+              deviceName: deviceEnvelope.deviceName,
+              attachment: deviceEnvelope.attachment,
             };
 
             // Emit to callbacks
@@ -605,7 +610,7 @@ export class MessagingService {
           this.trackProcessedTxid(tx.id);
 
           // Parse device envelope from cross-device message
-          const { deviceName, content: unwrappedContent } = parseDeviceEnvelope(decrypted.text);
+          const { deviceName, content: unwrappedContent, attachment: crossDeviceAttachment } = parseDeviceEnvelope(decrypted.text);
 
           // Emit as a sent message from another device
           const message: ChatMessage = {
@@ -618,6 +623,7 @@ export class MessagingService {
             status: 'confirmed',
             txid: tx.id,
             deviceName,
+            attachment: crossDeviceAttachment,
           };
 
           for (const cb of this.callbacks) {

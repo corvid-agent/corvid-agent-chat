@@ -2,6 +2,15 @@
  * Core types for the AlgoChat client
  */
 
+export interface Attachment {
+  type: 'image' | 'file';
+  mimeType: string;
+  fileName: string;
+  size: number;
+  base64?: string;      // For small files (inline in note)
+  ipfsHash?: string;    // For large files (IPFS CID stored in note, future)
+}
+
 export interface AgentConnection {
   address: string;
   psk: Uint8Array;
@@ -26,6 +35,7 @@ export interface ChatMessage {
   status: 'sending' | 'sent' | 'confirmed' | 'failed';
   txid?: string;
   deviceName?: string;
+  attachment?: Attachment;
 }
 
 export interface AppState {

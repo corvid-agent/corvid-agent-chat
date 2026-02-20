@@ -6,10 +6,11 @@ import { messaging } from '../messaging.ts';
 import { getAccount } from '../wallet.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { showToast } from '../toast.ts';
-import type { ChatMessage } from '../types.ts';
+import type { Attachment, ChatMessage } from '../types.ts';
 import { escapeHtml, shortenAddress, formatTime } from '../utils.ts';
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 import { getDeviceName } from '../device-name.ts';
+import { processFile, createImagePreview, createFileDownload, formatFileSize, isAcceptedType } from '../file-handler.ts';
 
 /** How often to check agent online status and wallet balance (ms) */
 const STATUS_CHECK_INTERVAL_MS = 30_000;
@@ -29,6 +30,10 @@ let searchOpen = false;
 let searchQuery = '';
 let searchMatches: HTMLElement[] = [];
 let searchCurrentIdx = -1;
+
+/* ── Pending attachment state ── */
+let pendingAttachment: Attachment | null = null;
+let pendingCaption: string | null = null;
 
 export function renderChat(): string {
   const state = store.getState();
@@ -85,7 +90,16 @@ export function renderChat(): string {
 
     <button id="scroll-to-bottom" class="scroll-bottom-btn" title="Scroll to bottom" style="display:none">&#x2193;</button>
 
+    <div id="attachment-preview" class="attachment-preview" style="display:none">
+      <div class="attachment-preview__inner">
+        <span id="attachment-preview-info" class="attachment-preview__info"></span>
+        <button id="attachment-preview-cancel" class="attachment-preview__cancel" title="Remove attachment">&#x2715;</button>
+      </div>
+    </div>
+
     <div class="input-bar">
+      <input id="file-input" type="file" accept="image/*,.txt,.csv,.json,.md,.html" style="display:none" />
+      <button id="btn-attach" class="input-bar__attach" title="Attach file">&#x1F4CE;</button>
       <textarea id="chat-input" class="input-bar__field" rows="1"
         placeholder="Type a message..." autocomplete="off"></textarea>
       <button id="btn-send" class="input-bar__send" disabled>Send</button>
@@ -97,9 +111,18 @@ export function bindChatEvents(): void {
   outputEl = document.getElementById('chat-output');
   inputEl = document.getElementById('chat-input') as HTMLTextAreaElement;
   const btnSend = document.getElementById('btn-send');
+  const btnAttach = document.getElementById('btn-attach');
+  const fileInput = document.getElementById('file-input') as HTMLInputElement | null;
+  const attachmentPreview = document.getElementById('attachment-preview');
+  const attachmentPreviewInfo = document.getElementById('attachment-preview-info');
+  const attachmentPreviewCancel = document.getElementById('attachment-preview-cancel');
   const connectionStatus = document.getElementById('connection-status');
   const connectionText = document.getElementById('connection-text');
   const pollDot = document.getElementById('poll-dot');
+
+  // Reset pending attachment state
+  pendingAttachment = null;
+  pendingCaption = null;
 
   // Initialize messaging service
   const account = getAccount();
@@ -182,21 +205,110 @@ export function bindChatEvents(): void {
   updateStatus();
   const statusTimer = setInterval(updateStatus, STATUS_CHECK_INTERVAL_MS);
 
+  // ── Attachment handling ──
+
+  function showAttachmentPreview(caption: string) {
+    if (attachmentPreview) attachmentPreview.style.display = '';
+    if (attachmentPreviewInfo) attachmentPreviewInfo.textContent = caption;
+    updateSendButton();
+  }
+
+  function clearPendingAttachment() {
+    pendingAttachment = null;
+    pendingCaption = null;
+    if (attachmentPreview) attachmentPreview.style.display = 'none';
+    if (attachmentPreviewInfo) attachmentPreviewInfo.textContent = '';
+    if (fileInput) fileInput.value = '';
+    updateSendButton();
+  }
+
+  async function handleFileSelection(file: File) {
+    try {
+      const processed = await processFile(file);
+      pendingAttachment = processed.attachment;
+      pendingCaption = processed.caption;
+      showAttachmentPreview(
+        `${pendingAttachment.type === 'image' ? 'Image' : 'File'}: ${file.name} (${formatFileSize(file.size)})`
+      );
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Failed to process file',
+        'error'
+      );
+      clearPendingAttachment();
+    }
+  }
+
+  // Attach button click
+  btnAttach?.addEventListener('click', () => {
+    fileInput?.click();
+  });
+
+  // File input change
+  fileInput?.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) handleFileSelection(file);
+  });
+
+  // Cancel attachment
+  attachmentPreviewCancel?.addEventListener('click', () => {
+    clearPendingAttachment();
+  });
+
+  // Drag and drop on the chat output area
+  const terminalEl = outputEl?.parentElement;
+  if (terminalEl) {
+    terminalEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      terminalEl.classList.add('terminal--dragover');
+    });
+
+    terminalEl.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      terminalEl.classList.remove('terminal--dragover');
+    });
+
+    terminalEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      terminalEl.classList.remove('terminal--dragover');
+
+      const file = e.dataTransfer?.files[0];
+      if (file) {
+        if (isAcceptedType(file.type)) {
+          handleFileSelection(file);
+        } else {
+          showToast(`File type "${file.type || 'unknown'}" is not supported`, 'error');
+        }
+      }
+    });
+  }
+
   // Send message
   const sendMessage = async () => {
     if (!inputEl) return;
     const content = inputEl.value.trim();
-    if (!content) return;
+    const attachment = pendingAttachment;
+    const caption = pendingCaption;
+
+    // Need either text content or an attachment
+    if (!content && !attachment) return;
+
+    // Determine the message content: use typed text, or attachment caption as fallback
+    const messageContent = content || caption || '';
 
     // Create optimistic message
     const tempId = `temp-${Date.now()}`;
     const outMsg: ChatMessage = {
       id: tempId,
-      content,
+      content: messageContent,
       direction: 'sent',
       timestamp: new Date(),
       status: 'sending',
       deviceName: getDeviceName() ?? undefined,
+      attachment: attachment ?? undefined,
     };
 
     store.addMessage(outMsg);
@@ -206,13 +318,14 @@ export function bindChatEvents(): void {
 
     inputEl.value = '';
     inputEl.style.height = 'auto';
+    clearPendingAttachment();
     updateSendButton();
 
     store.setSending(true);
     if (btnSend) btnSend.setAttribute('disabled', 'true');
 
     try {
-      const txid = await messaging.sendMessage(content);
+      const txid = await messaging.sendMessage(messageContent, attachment ?? undefined);
       store.updateMessageStatus(tempId, 'confirmed', txid);
       updateMessageEl(tempId, 'confirmed');
       // Update persisted status
@@ -287,7 +400,7 @@ export function bindChatEvents(): void {
   // Update send button state
   function updateSendButton() {
     if (!inputEl || !btnSend) return;
-    const hasContent = inputEl.value.trim().length > 0;
+    const hasContent = inputEl.value.trim().length > 0 || pendingAttachment !== null;
     if (hasContent) {
       btnSend.removeAttribute('disabled');
     } else {
@@ -524,6 +637,7 @@ export function bindChatEvents(): void {
     clearInterval(statusTimer);
     document.removeEventListener('keydown', handleGlobalKeydown);
     closeSearch();
+    clearPendingAttachment();
   };
 }
 
@@ -567,6 +681,17 @@ function appendMessage(msg: ChatMessage): void {
     <button class="msg__copy" title="Copy to clipboard">&#x2398;</button>
   `;
 
+  // Append attachment display if present
+  if (msg.attachment) {
+    const textSpan = div.querySelector('.msg__text');
+    if (textSpan) {
+      const attachEl = msg.attachment.type === 'image'
+        ? createImagePreview(msg.attachment)
+        : createFileDownload(msg.attachment);
+      textSpan.appendChild(attachEl);
+    }
+  }
+
   // Copy button
   const copyBtn = div.querySelector('.msg__copy');
   copyBtn?.addEventListener('click', () => {
@@ -583,7 +708,7 @@ function appendMessage(msg: ChatMessage): void {
   retryBtn?.addEventListener('click', async () => {
     if (!msg.content) return;
     try {
-      const txid = await messaging.sendMessage(msg.content);
+      const txid = await messaging.sendMessage(msg.content, msg.attachment);
       store.updateMessageStatus(msg.id, 'confirmed', txid);
       updateMessageEl(msg.id, 'confirmed');
       dbUpdateStatus(msg.id, 'confirmed', txid);
@@ -645,6 +770,8 @@ export function cleanupChat(): void {
   chatCleanupFn?.();
   chatCleanupFn = null;
 
+  pendingAttachment = null;
+  pendingCaption = null;
   outputEl = null;
   inputEl = null;
 }

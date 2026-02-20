@@ -2,7 +2,7 @@
  * IndexedDB message persistence
  * Stores chat messages per agent connection, survives page refresh
  */
-import type { ChatMessage } from './types.ts';
+import type { Attachment, ChatMessage } from './types.ts';
 
 const DB_NAME = 'corvid-chat';
 const DB_VERSION = 2;
@@ -50,6 +50,7 @@ interface StoredMessage {
   status: ChatMessage['status'];
   txid?: string;
   deviceName?: string;
+  attachment?: Attachment;
 }
 
 function toStored(msg: ChatMessage, agentAddress: string): StoredMessage {
@@ -62,6 +63,7 @@ function toStored(msg: ChatMessage, agentAddress: string): StoredMessage {
     status: msg.status,
     txid: msg.txid,
     deviceName: msg.deviceName,
+    attachment: msg.attachment,
   };
 }
 
@@ -74,6 +76,7 @@ function fromStored(stored: StoredMessage): ChatMessage {
     status: stored.status,
     txid: stored.txid,
     deviceName: stored.deviceName,
+    attachment: stored.attachment,
   };
 }
 

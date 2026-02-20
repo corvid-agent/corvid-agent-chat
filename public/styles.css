@@ -792,3 +792,122 @@ mark.search-highlight {
     color: var(--accent-cyan);
     border-bottom-color: var(--accent-cyan);
 }
+
+/* ── File attachment styles ── */
+
+/* Attach button in input bar */
+.input-bar__attach {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); border-radius: var(--radius);
+    padding: 0.5rem; font-size: 1rem; cursor: pointer;
+    min-width: 44px; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, color 0.2s;
+    font-family: inherit; flex-shrink: 0;
+}
+.input-bar__attach:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+/* Attachment preview bar (above input) */
+.attachment-preview {
+    background: var(--bg-raised);
+    border-top: 1px solid var(--border);
+    padding: 0.375rem 0.75rem;
+    flex-shrink: 0;
+}
+.attachment-preview__inner {
+    display: flex; align-items: center;
+    gap: 0.375rem;
+}
+.attachment-preview__info {
+    flex: 1;
+    font-size: 0.875rem;
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.attachment-preview__cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    width: 28px; height: 28px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, color 0.15s;
+    font-family: inherit; flex-shrink: 0;
+}
+.attachment-preview__cancel:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+}
+
+/* Drag-and-drop indicator */
+.terminal--dragover {
+    outline: 2px dashed var(--accent-cyan);
+    outline-offset: -4px;
+    background: var(--accent-cyan-dim);
+}
+
+/* Inline attachment display in messages */
+.attachment {
+    display: flex; align-items: center; gap: 0.375rem;
+    margin-top: 0.25rem;
+    padding: 0.375rem 0.5rem;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    max-width: 300px;
+}
+.attachment--image {
+    flex-direction: column;
+    align-items: flex-start;
+}
+.attachment__img {
+    max-width: 128px; max-height: 128px;
+    border-radius: var(--radius-sm);
+    image-rendering: pixelated;
+    border: 1px solid var(--border-bright);
+}
+.attachment__info {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+.attachment__icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.attachment__link {
+    color: var(--accent-cyan);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.attachment__link:hover {
+    text-decoration: underline;
+}
+.attachment__name {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.attachment__size {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+    margin-left: auto;
+}
