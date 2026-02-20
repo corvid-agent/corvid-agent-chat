@@ -24,6 +24,12 @@ let unsubMessages: (() => void) | null = null;
 let unsubPollErrors: (() => void) | null = null;
 let chatCleanupFn: (() => void) | null = null;
 
+/* ── Search state ── */
+let searchOpen = false;
+let searchQuery = '';
+let searchMatches: HTMLElement[] = [];
+let searchCurrentIdx = -1;
+
 export function renderChat(): string {
   const state = store.getState();
   const agent = state.agent.connection;
@@ -46,7 +52,19 @@ export function renderChat(): string {
           <span class="wallet-badge__dot"></span>
           <span class="wallet-badge__addr">${walletAddr}</span>
         </div>
+        <button id="btn-search" class="icon-btn" title="Search messages">&#x1F50D;</button>
         <button id="btn-settings" class="icon-btn" title="Settings">&#x2699;</button>
+      </div>
+    </div>
+
+    <div class="search-bar" id="search-bar" style="display:none">
+      <div class="search-bar__inner">
+        <input id="search-input" class="search-bar__field" type="text"
+          placeholder="Search messages..." autocomplete="off" />
+        <span id="search-count" class="search-bar__count"></span>
+        <button id="search-prev" class="search-bar__nav" title="Previous match" disabled>&#x25B2;</button>
+        <button id="search-next" class="search-bar__nav" title="Next match" disabled>&#x25BC;</button>
+        <button id="search-close" class="search-bar__close" title="Close search">&#x2715;</button>
       </div>
     </div>
 
@@ -277,9 +295,235 @@ export function bindChatEvents(): void {
     }
   }
 
+  // ── Search feature ──
+  const searchBar = document.getElementById('search-bar');
+  const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
+  const searchCount = document.getElementById('search-count');
+  const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null;
+  const searchNext = document.getElementById('search-next') as HTMLButtonElement | null;
+  const searchClose = document.getElementById('search-close');
+  const btnSearch = document.getElementById('btn-search');
+
+  function openSearch() {
+    if (!searchBar || !searchInput) return;
+    searchOpen = true;
+    searchBar.style.display = '';
+    searchInput.value = searchQuery;
+    searchInput.focus();
+    if (searchQuery) {
+      executeSearch(searchQuery);
+    }
+  }
+
+  function closeSearch() {
+    if (!searchBar) return;
+    searchOpen = false;
+    searchBar.style.display = 'none';
+    clearSearchHighlights();
+    searchQuery = '';
+    searchMatches = [];
+    searchCurrentIdx = -1;
+    if (searchCount) searchCount.textContent = '';
+  }
+
+  function clearSearchHighlights() {
+    // Remove all search highlights from messages
+    if (!outputEl) return;
+    const highlighted = outputEl.querySelectorAll('.msg--search-match');
+    highlighted.forEach((el) => el.classList.remove('msg--search-match'));
+    const active = outputEl.querySelectorAll('.msg--search-active');
+    active.forEach((el) => el.classList.remove('msg--search-active'));
+    // Remove inline highlight spans
+    const marks = outputEl.querySelectorAll('mark.search-highlight');
+    marks.forEach((mark) => {
+      const parent = mark.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark);
+        parent.normalize();
+      }
+    });
+  }
+
+  function highlightTextInNode(node: Node, regex: RegExp): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? '';
+      const match = regex.exec(text);
+      if (!match) return false;
+
+      const span = document.createElement('span');
+      const before = text.substring(0, match.index);
+      const matched = text.substring(match.index, match.index + match[0].length);
+      const after = text.substring(match.index + match[0].length);
+
+      if (before) span.appendChild(document.createTextNode(before));
+      const mark = document.createElement('mark');
+      mark.className = 'search-highlight';
+      mark.textContent = matched;
+      span.appendChild(mark);
+      if (after) span.appendChild(document.createTextNode(after));
+
+      node.parentNode?.replaceChild(span, node);
+
+      // Recursively highlight the rest (the after text node)
+      if (after) {
+        const lastChild = span.lastChild;
+        if (lastChild) highlightTextInNode(lastChild, regex);
+      }
+      return true;
+    }
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      // Skip buttons, time stamps, prompts, and already-highlighted marks
+      if (
+        el.tagName === 'BUTTON' ||
+        el.tagName === 'MARK' ||
+        el.classList.contains('msg__time') ||
+        el.classList.contains('msg__prompt') ||
+        el.classList.contains('msg__copy') ||
+        el.classList.contains('msg__status') ||
+        el.classList.contains('msg__retry')
+      ) {
+        return false;
+      }
+      let found = false;
+      // Iterate over a snapshot of child nodes (highlighting mutates the DOM)
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        if (highlightTextInNode(child, regex)) found = true;
+      }
+      return found;
+    }
+
+    return false;
+  }
+
+  function executeSearch(query: string) {
+    clearSearchHighlights();
+    searchMatches = [];
+    searchCurrentIdx = -1;
+
+    if (!query || !outputEl) {
+      updateSearchNav();
+      return;
+    }
+
+    // Escape regex special chars
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'gi');
+
+    // Search through the message store for matching content
+    const messages = store.getState().chat.messages;
+    const matchingIds = new Set<string>();
+    for (const msg of messages) {
+      if (msg.content.match(new RegExp(escaped, 'i'))) {
+        matchingIds.add(msg.id);
+      }
+    }
+
+    // Highlight matching message elements
+    const msgEls = outputEl.querySelectorAll('.msg');
+    msgEls.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      const msgId = htmlEl.id.replace(/^msg-/, '');
+      if (matchingIds.has(msgId)) {
+        htmlEl.classList.add('msg--search-match');
+        searchMatches.push(htmlEl);
+        // Highlight matching text within the .msg__text span
+        const textSpan = htmlEl.querySelector('.msg__text');
+        if (textSpan) {
+          highlightTextInNode(textSpan, new RegExp(escaped, 'gi'));
+        }
+      }
+    });
+
+    if (searchMatches.length > 0) {
+      searchCurrentIdx = 0;
+      searchMatches[0]!.classList.add('msg--search-active');
+      searchMatches[0]!.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    updateSearchNav();
+  }
+
+  function updateSearchNav() {
+    const total = searchMatches.length;
+    if (searchCount) {
+      if (!searchQuery) {
+        searchCount.textContent = '';
+      } else if (total === 0) {
+        searchCount.textContent = 'No matches';
+      } else {
+        searchCount.textContent = `${searchCurrentIdx + 1} of ${total} match${total !== 1 ? 'es' : ''}`;
+      }
+    }
+    if (searchPrev) searchPrev.disabled = total < 2;
+    if (searchNext) searchNext.disabled = total < 2;
+  }
+
+  function navigateSearch(direction: 'prev' | 'next') {
+    if (searchMatches.length === 0) return;
+    // Remove active class from current
+    searchMatches[searchCurrentIdx]?.classList.remove('msg--search-active');
+
+    if (direction === 'next') {
+      searchCurrentIdx = (searchCurrentIdx + 1) % searchMatches.length;
+    } else {
+      searchCurrentIdx = (searchCurrentIdx - 1 + searchMatches.length) % searchMatches.length;
+    }
+
+    searchMatches[searchCurrentIdx]!.classList.add('msg--search-active');
+    searchMatches[searchCurrentIdx]!.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    updateSearchNav();
+  }
+
+  btnSearch?.addEventListener('click', () => {
+    if (searchOpen) {
+      closeSearch();
+    } else {
+      openSearch();
+    }
+  });
+
+  searchInput?.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    executeSearch(searchQuery);
+  });
+
+  searchInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSearch();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        navigateSearch('prev');
+      } else {
+        navigateSearch('next');
+      }
+    }
+  });
+
+  searchPrev?.addEventListener('click', () => navigateSearch('prev'));
+  searchNext?.addEventListener('click', () => navigateSearch('next'));
+  searchClose?.addEventListener('click', () => closeSearch());
+
+  // Global keyboard shortcut: Ctrl/Cmd+F opens search
+  const handleGlobalKeydown = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      openSearch();
+    }
+    if (e.key === 'Escape' && searchOpen) {
+      closeSearch();
+    }
+  };
+  document.addEventListener('keydown', handleGlobalKeydown);
+
   // Store cleanup function for when view changes
   chatCleanupFn = () => {
     clearInterval(statusTimer);
+    document.removeEventListener('keydown', handleGlobalKeydown);
+    closeSearch();
   };
 }
 
