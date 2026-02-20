@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/preview.png" alt="corvid-agent-chat preview" width="100%"></p>
+
 # CorvidAgent Chat
 
 Decentralized peer-to-peer messaging client built on [AlgoChat](https://github.com/CorvidLabs/ts-algochat) — encrypted communication over the Algorand blockchain.
