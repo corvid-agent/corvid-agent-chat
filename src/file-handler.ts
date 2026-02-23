@@ -260,7 +260,7 @@ export function createFileDownload(attachment: Attachment): HTMLElement {
   if (attachment.base64) {
     const link = document.createElement('a');
     const bytes = base64ToArray(attachment.base64);
-    const blob = new Blob([bytes], { type: attachment.mimeType });
+    const blob = new Blob([new Uint8Array(bytes)], { type: attachment.mimeType });
     link.href = URL.createObjectURL(blob);
     link.download = attachment.fileName;
     link.className = 'attachment__link';
