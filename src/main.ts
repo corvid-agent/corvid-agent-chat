@@ -6,6 +6,7 @@ import { store } from './store.ts';
 import { hasStoredWallet } from './wallet.ts';
 import { loadConnection } from './qr-scanner.ts';
 import { startIdleLock, stopIdleLock } from './idle-lock.ts';
+import { registerServiceWorker } from './pwa.ts';
 import type { AppView } from './types.ts';
 
 // View modules (lazy imported for code splitting)
@@ -98,6 +99,9 @@ store.subscribe(render);
 
 // Set initial view
 store.setView(determineInitialView());
+
+// Register PWA service worker
+registerServiceWorker();
 
 // Log startup
 console.log(
