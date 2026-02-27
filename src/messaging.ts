@@ -31,8 +31,6 @@ const PROCESSED_TXIDS_KEY = 'corvid-processed-txids';
 const POLL_INTERVAL_MS = 10_000;
 const POLL_INTERVAL_MAX_MS = 120_000;
 const POLL_BACKOFF_MULTIPLIER = 2;
-const MAX_PROCESSED_TXIDS = 500;
-const TXID_EVICTION_COUNT = 100;
 /** Minimum ALGO to send per message (in microALGO) */
 const MIN_TX_AMOUNT_MICROALGO = 1_000;
 
@@ -483,6 +481,9 @@ export class MessagingService {
       this.lastRound = maxRound;
       this.saveLastRound();
       this.savePSKState();
+      // Clear processed txids — minRound filtering prevents re-processing old transactions
+      this.processedTxids.clear();
+      this.saveProcessedTxids();
     }
 
     // Also poll for messages sent from our wallet by other devices
@@ -491,13 +492,6 @@ export class MessagingService {
 
   private trackProcessedTxid(txid: string): void {
     this.processedTxids.add(txid);
-    if (this.processedTxids.size > MAX_PROCESSED_TXIDS) {
-      const iter = this.processedTxids.values();
-      for (let i = 0; i < TXID_EVICTION_COUNT; i++) {
-        const val = iter.next().value;
-        if (val) this.processedTxids.delete(val);
-      }
-    }
     this.saveProcessedTxids();
   }
 
