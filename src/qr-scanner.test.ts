@@ -4,17 +4,9 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { bufferToBase64 } from './utils.ts';
+import { stubLocalStorage } from './test-utils.ts';
 
-// Node.js built-in localStorage lacks .clear() and .removeItem() — provide a full mock
-const store = new Map<string, string>();
-vi.stubGlobal('localStorage', {
-  getItem: (key: string) => store.get(key) ?? null,
-  setItem: (key: string, val: string) => { store.set(key, String(val)); },
-  removeItem: (key: string) => { store.delete(key); },
-  clear: () => { store.clear(); },
-  get length() { return store.size; },
-  key: (i: number) => [...store.keys()][i] ?? null,
-});
+const { store } = stubLocalStorage();
 
 /** Encode Uint8Array to base64url (no padding) — mirrors ts-algochat encoding */
 function toBase64Url(data: Uint8Array): string {

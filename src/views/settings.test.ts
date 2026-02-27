@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AgentConnection, ChatMessage } from '../types.ts';
+import { stubLocalStorage } from '../test-utils.ts';
 
 // ── Hoisted mocks ──
 
@@ -462,17 +463,7 @@ describe('settings view', () => {
     it('deletes everything when user confirms', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-      // Node.js built-in localStorage lacks .clear() — create a full mock
-      const store = new Map<string, string>();
-      const clearFn = vi.fn(() => store.clear());
-      vi.stubGlobal('localStorage', {
-        getItem: (key: string) => store.get(key) ?? null,
-        setItem: (key: string, val: string) => store.set(key, String(val)),
-        removeItem: (key: string) => store.delete(key),
-        key: (idx: number) => [...store.keys()][idx] ?? null,
-        get length() { return store.size; },
-        clear: clearFn,
-      });
+      const { clear: clearFn } = stubLocalStorage();
 
       setup();
       document.getElementById('btn-delete-all')!.click();
