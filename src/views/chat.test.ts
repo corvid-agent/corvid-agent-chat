@@ -631,6 +631,105 @@ describe('chat view', () => {
     });
   });
 
+  // ── keyboard shortcuts help ──
+
+  describe('keyboard shortcuts help overlay', () => {
+    it('renders shortcuts button in the header', () => {
+      const html = renderChat();
+      expect(html).toContain('id="btn-shortcuts"');
+    });
+
+    it('renders shortcuts overlay hidden by default', () => {
+      renderIntoDOM(renderChat());
+      const overlay = document.getElementById('shortcuts-overlay');
+      expect(overlay).toBeTruthy();
+      expect(overlay!.style.display).toBe('none');
+    });
+
+    it('opens shortcuts overlay on button click', () => {
+      setupChat();
+      const overlay = document.getElementById('shortcuts-overlay')!;
+
+      document.getElementById('btn-shortcuts')!.click();
+
+      expect(overlay.style.display).toBe('');
+    });
+
+    it('closes shortcuts overlay on second button click (toggle)', () => {
+      setupChat();
+      const overlay = document.getElementById('shortcuts-overlay')!;
+
+      document.getElementById('btn-shortcuts')!.click();
+      document.getElementById('btn-shortcuts')!.click();
+
+      expect(overlay.style.display).toBe('none');
+    });
+
+    it('closes shortcuts overlay via close button', () => {
+      setupChat();
+
+      document.getElementById('btn-shortcuts')!.click();
+      document.getElementById('shortcuts-close')!.click();
+
+      expect(document.getElementById('shortcuts-overlay')!.style.display).toBe('none');
+    });
+
+    it('closes shortcuts overlay on Escape key', () => {
+      setupChat();
+      const overlay = document.getElementById('shortcuts-overlay')!;
+
+      document.getElementById('btn-shortcuts')!.click();
+      expect(overlay.style.display).toBe('');
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+      );
+
+      expect(overlay.style.display).toBe('none');
+    });
+
+    it('toggles shortcuts overlay on "?" key press', () => {
+      setupChat();
+      const overlay = document.getElementById('shortcuts-overlay')!;
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '?', bubbles: true })
+      );
+      expect(overlay.style.display).toBe('');
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '?', bubbles: true })
+      );
+      expect(overlay.style.display).toBe('none');
+    });
+
+    it('closes shortcuts overlay on click outside modal', () => {
+      setupChat();
+      const overlay = document.getElementById('shortcuts-overlay')!;
+
+      document.getElementById('btn-shortcuts')!.click();
+      expect(overlay.style.display).toBe('');
+
+      // Click on the overlay background (not the modal inside)
+      overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      expect(overlay.style.display).toBe('none');
+    });
+
+    it('lists all shortcut groups', () => {
+      renderIntoDOM(renderChat());
+      const overlay = document.getElementById('shortcuts-overlay')!;
+
+      expect(overlay.textContent).toContain('Messages');
+      expect(overlay.textContent).toContain('Search');
+      expect(overlay.textContent).toContain('Navigation');
+      expect(overlay.textContent).toContain('Send message');
+      expect(overlay.textContent).toContain('New line');
+      expect(overlay.textContent).toContain('Open search');
+      expect(overlay.textContent).toContain('Close search');
+    });
+  });
+
   // ── cleanupChat ──
 
   describe('cleanupChat', () => {
