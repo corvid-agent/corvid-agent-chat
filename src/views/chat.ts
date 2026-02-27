@@ -12,6 +12,8 @@ import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from
 import { getDeviceName } from '../device-name.ts';
 import { processFile, createImagePreview, createFileDownload, formatFileSize, isAcceptedType } from '../file-handler.ts';
 
+/** Detect macOS for shortcut labels */
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 /** How often to check agent online status and wallet balance (ms) */
 const STATUS_CHECK_INTERVAL_MS = 30_000;
 /** Max height for auto-resizing textarea (px) */
@@ -61,6 +63,7 @@ export function renderChat(): string {
           <span class="wallet-badge__addr">${walletAddr}</span>
         </div>
         <button id="btn-search" class="icon-btn" title="Search messages">&#x1F50D;</button>
+        <button id="btn-shortcuts" class="icon-btn" title="Keyboard shortcuts">?</button>
         <button id="btn-settings" class="icon-btn" title="Settings">&#x2699;</button>
       </div>
     </div>
@@ -106,6 +109,33 @@ export function renderChat(): string {
       <textarea id="chat-input" class="input-bar__field" rows="1"
         placeholder="Type a message..." autocomplete="off"></textarea>
       <button id="btn-send" class="input-bar__send" disabled>Send</button>
+    </div>
+
+    <div id="shortcuts-overlay" class="modal-overlay" style="display:none">
+      <div class="modal shortcuts-modal">
+        <div class="modal__title">Keyboard Shortcuts</div>
+        <div class="shortcuts-list">
+          <div class="shortcuts-group">
+            <div class="shortcuts-group__title">Messages</div>
+            <div class="shortcut-row"><kbd>Enter</kbd><span>Send message</span></div>
+            <div class="shortcut-row"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>New line</span></div>
+          </div>
+          <div class="shortcuts-group">
+            <div class="shortcuts-group__title">Search</div>
+            <div class="shortcut-row"><kbd>${isMac ? 'Cmd' : 'Ctrl'}</kbd> + <kbd>F</kbd><span>Open search</span></div>
+            <div class="shortcut-row"><kbd>Escape</kbd><span>Close search</span></div>
+            <div class="shortcut-row"><kbd>Enter</kbd><span>Next match</span></div>
+            <div class="shortcut-row"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>Previous match</span></div>
+          </div>
+          <div class="shortcuts-group">
+            <div class="shortcuts-group__title">Navigation</div>
+            <div class="shortcut-row"><kbd>?</kbd><span>Toggle this help</span></div>
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button id="shortcuts-close" class="btn btn--secondary">Close</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -630,6 +660,34 @@ export function bindChatEvents(): void {
   searchNext?.addEventListener('click', () => navigateSearch('next'));
   searchClose?.addEventListener('click', () => closeSearch());
 
+  // ── Shortcuts help overlay ──
+  const shortcutsOverlay = document.getElementById('shortcuts-overlay');
+  const btnShortcuts = document.getElementById('btn-shortcuts');
+  const shortcutsClose = document.getElementById('shortcuts-close');
+
+  function openShortcuts() {
+    if (shortcutsOverlay) shortcutsOverlay.style.display = '';
+  }
+
+  function closeShortcuts() {
+    if (shortcutsOverlay) shortcutsOverlay.style.display = 'none';
+  }
+
+  btnShortcuts?.addEventListener('click', () => {
+    if (shortcutsOverlay?.style.display === 'none') {
+      openShortcuts();
+    } else {
+      closeShortcuts();
+    }
+  });
+
+  shortcutsClose?.addEventListener('click', closeShortcuts);
+
+  // Close on click outside the modal
+  shortcutsOverlay?.addEventListener('click', (e) => {
+    if (e.target === shortcutsOverlay) closeShortcuts();
+  });
+
   // Global keyboard shortcut: Ctrl/Cmd+F opens search
   const handleGlobalKeydown = (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -639,6 +697,24 @@ export function bindChatEvents(): void {
     if (e.key === 'Escape' && searchOpen) {
       closeSearch();
     }
+    // "?" key opens shortcuts help (when not typing in input/search)
+    if (
+      e.key === '?' &&
+      !e.ctrlKey && !e.metaKey && !e.altKey &&
+      document.activeElement !== inputEl &&
+      document.activeElement !== searchInput
+    ) {
+      e.preventDefault();
+      if (shortcutsOverlay?.style.display === 'none') {
+        openShortcuts();
+      } else {
+        closeShortcuts();
+      }
+    }
+    // Escape closes shortcuts overlay
+    if (e.key === 'Escape' && shortcutsOverlay?.style.display !== 'none') {
+      closeShortcuts();
+    }
   };
   document.addEventListener('keydown', handleGlobalKeydown);
 
@@ -647,6 +723,7 @@ export function bindChatEvents(): void {
     clearInterval(statusTimer);
     document.removeEventListener('keydown', handleGlobalKeydown);
     closeSearch();
+    closeShortcuts();
     clearPendingAttachment();
   };
 }
