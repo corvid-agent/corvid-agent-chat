@@ -18,6 +18,8 @@ const STATUS_CHECK_INTERVAL_MS = 30_000;
 const INPUT_MAX_HEIGHT_PX = 200;
 /** Duration to show copy confirmation before reverting (ms) */
 const COPY_FEEDBACK_MS = 1_500;
+/** Debounce delay for search input (ms) */
+const SEARCH_DEBOUNCE_MS = 150;
 
 let outputEl: HTMLElement | null = null;
 let inputEl: HTMLTextAreaElement | null = null;
@@ -30,6 +32,7 @@ let searchOpen = false;
 let searchQuery = '';
 let searchMatches: HTMLElement[] = [];
 let searchCurrentIdx = -1;
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 /* ── Pending attachment state ── */
 let pendingAttachment: Attachment | null = null;
@@ -436,6 +439,10 @@ export function bindChatEvents(): void {
     searchQuery = '';
     searchMatches = [];
     searchCurrentIdx = -1;
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
     if (searchCount) searchCount.textContent = '';
   }
 
@@ -521,15 +528,15 @@ export function bindChatEvents(): void {
       return;
     }
 
-    // Escape regex special chars
+    // Escape regex special chars and compile once
     const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escaped, 'gi');
+    const matchRegex = new RegExp(escaped, 'i');
 
     // Search through the message store for matching content
     const messages = store.getState().chat.messages;
     const matchingIds = new Set<string>();
     for (const msg of messages) {
-      if (msg.content.match(new RegExp(escaped, 'i'))) {
+      if (matchRegex.test(msg.content)) {
         matchingIds.add(msg.id);
       }
     }
@@ -600,7 +607,10 @@ export function bindChatEvents(): void {
 
   searchInput?.addEventListener('input', () => {
     searchQuery = searchInput.value;
-    executeSearch(searchQuery);
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      executeSearch(searchQuery);
+    }, SEARCH_DEBOUNCE_MS);
   });
 
   searchInput?.addEventListener('keydown', (e) => {
