@@ -98,6 +98,7 @@ vi.mock('../utils.ts', () => ({
   escapeHtml: (s: string) => s,
   shortenAddress: (s: string, a = 6, b = 4) => `${s.slice(0, a)}...${s.slice(-b)}`,
   formatTime: () => '12:00',
+  formatDateLabel: () => 'Today',
 }));
 vi.mock('../file-handler.ts', () => ({
   processFile: vi.fn(),

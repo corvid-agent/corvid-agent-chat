@@ -48,6 +48,34 @@ export function base64ToBuffer(b64: string): Uint8Array {
 }
 
 /**
+ * Format a Date to a human-readable date label for message grouping.
+ * Returns "Today", "Yesterday", or a short date like "Feb 25" (current year)
+ * or "Feb 25, 2025" (previous years).
+ */
+export function formatDateLabel(date: Date): string {
+  const d = date instanceof Date ? date : new Date(date);
+  const now = new Date();
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  const diffMs = startOfToday.getTime() - startOfDay.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getMonth()]!;
+  const day = d.getDate();
+
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${month} ${day}`;
+  }
+  return `${month} ${day}, ${d.getFullYear()}`;
+}
+
+/**
  * Shorten an Algorand address for display
  */
 export function shortenAddress(
