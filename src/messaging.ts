@@ -271,6 +271,71 @@ export class MessagingService {
   }
 
   /**
+   * Send ALGO to any Algorand address
+   */
+  async sendAlgo(receiver: string, microAlgos: number): Promise<string> {
+    if (!this.chatAccount || !this.algodClient) {
+      throw new Error('Service not initialized');
+    }
+    if (microAlgos <= 0) throw new Error('Amount must be positive');
+
+    const params = await this.algodClient.getTransactionParams().do();
+    const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      sender: this.chatAccount.address,
+      receiver,
+      amount: microAlgos,
+      suggestedParams: params,
+    });
+
+    const signedTxn = txn.signTxn(this.chatAccount.account.sk);
+    const { txid } = await this.algodClient
+      .sendRawTransaction(signedTxn)
+      .do();
+
+    return txid as string;
+  }
+
+  /**
+   * Send USDC (ASA) to any Algorand address
+   */
+  async sendUsdc(receiver: string, usdcMicro: number, assetId: number): Promise<string> {
+    if (!this.chatAccount || !this.algodClient) {
+      throw new Error('Service not initialized');
+    }
+    if (usdcMicro <= 0) throw new Error('Amount must be positive');
+
+    const params = await this.algodClient.getTransactionParams().do();
+    const txn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+      sender: this.chatAccount.address,
+      receiver,
+      amount: usdcMicro,
+      assetIndex: assetId,
+      suggestedParams: params,
+    });
+
+    const signedTxn = txn.signTxn(this.chatAccount.account.sk);
+    const { txid } = await this.algodClient
+      .sendRawTransaction(signedTxn)
+      .do();
+
+    return txid as string;
+  }
+
+  /**
+   * Get the connected agent's address (if any)
+   */
+  getAgentAddress(): string | null {
+    return this.connection?.address ?? null;
+  }
+
+  /**
+   * Get the current network
+   */
+  getNetwork(): 'mainnet' | 'testnet' | null {
+    return this.connection?.network ?? null;
+  }
+
+  /**
    * Get wallet balance
    */
   async getBalance(): Promise<number> {
