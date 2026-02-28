@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { bufferToBase64 } from './utils.ts';
 import { stubLocalStorage } from './test-utils.ts';
 
-const { store } = stubLocalStorage();
+stubLocalStorage();
 
 /** Encode Uint8Array to base64url (no padding) — mirrors ts-algochat encoding */
 function toBase64Url(data: Uint8Array): string {

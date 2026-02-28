@@ -2,7 +2,7 @@
  * Tests for wallet management: encryption, decryption, storage, and lifecycle
  * Covers the critical security path: PBKDF2 key derivation + AES-GCM encrypt/decrypt
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 import { bufferToBase64, base64ToBuffer } from './utils.ts';
 import type { StoredWallet } from './types.ts';

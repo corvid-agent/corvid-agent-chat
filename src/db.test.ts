@@ -2,7 +2,7 @@
  * Tests for IndexedDB message persistence layer
  * Uses fake-indexeddb to provide an in-memory IndexedDB implementation
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import {
   saveMessage,

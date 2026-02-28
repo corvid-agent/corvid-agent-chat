@@ -2,7 +2,7 @@
  * Tests for PSK state management in MessagingService
  * Verifies fingerprint-based state reset when PSK changes
  */
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 
 // Simulate the messaging service's PSK fingerprint logic (same as in messaging.ts)
 function pskFingerprint(psk: Uint8Array): string {

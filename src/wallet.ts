@@ -2,7 +2,7 @@
  * Wallet management with encrypted storage
  * Uses Web Crypto API: AES-GCM + PBKDF2
  */
-import algosdk from 'algosdk';
+
 import {
   createChatAccountFromMnemonic,
   createRandomChatAccount,

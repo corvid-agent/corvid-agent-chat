@@ -2,8 +2,8 @@
  * Settings view - Wallet management, agent info, disconnect
  */
 import { store } from '../store.ts';
-import { getAccount, exportMnemonic, deleteWallet, lockWallet } from '../wallet.ts';
-import { clearConnection, loadConnection } from '../qr-scanner.ts';
+import { exportMnemonic, deleteWallet, lockWallet } from '../wallet.ts';
+import { clearConnection } from '../qr-scanner.ts';
 import { messaging } from '../messaging.ts';
 import { showToast } from '../toast.ts';
 import { escapeHtml } from '../utils.ts';

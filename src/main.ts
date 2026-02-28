@@ -4,7 +4,7 @@
  */
 import { store } from './store.ts';
 import { hasStoredWallet } from './wallet.ts';
-import { loadConnection } from './qr-scanner.ts';
+
 import { startIdleLock, stopIdleLock } from './idle-lock.ts';
 import { registerServiceWorker } from './pwa.ts';
 import type { AppView } from './types.ts';
