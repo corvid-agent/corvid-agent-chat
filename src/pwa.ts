@@ -16,7 +16,7 @@ export async function registerServiceWorker(): Promise<void> {
 
     const updateSW = registerSW({
       immediate: true,
-      onRegisteredSW(swUrl, registration) {
+      onRegisteredSW(_swUrl, registration) {
         // Check for updates every 30 minutes
         if (registration) {
           setInterval(() => {
