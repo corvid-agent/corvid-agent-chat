@@ -28,5 +28,8 @@
     "@corvidlabs/ts-algochat": "^0.3.0",
     "algosdk": "^3.5.2",
     "html5-qrcode": "^2.3.8"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.3"
   }
 }
