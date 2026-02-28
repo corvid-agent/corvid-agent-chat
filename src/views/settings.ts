@@ -84,6 +84,37 @@ export function renderSettings(): string {
         </div>
       </div>
 
+      <!-- Send Section -->
+      <div class="setup-card" style="max-width:100%;margin-top:1rem">
+        <div class="setup-card__title">Send</div>
+        <div style="display:flex;gap:0.25rem;margin-bottom:0.75rem">
+          <button id="btn-send-tab-algo" class="btn btn--secondary send-tab send-tab--active"
+            style="flex:1;padding:0.35rem 0.5rem;font-size:0.75rem">ALGO</button>
+          <button id="btn-send-tab-usdc" class="btn btn--secondary send-tab"
+            style="flex:1;padding:0.35rem 0.5rem;font-size:0.75rem"${network === 'testnet' ? ' disabled title="USDC not available on testnet"' : ''}>USDC</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Recipient</label>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input type="text" id="send-recipient" class="form-input"
+              placeholder="Algorand address..." style="font-family:var(--font-mono);font-size:0.7rem">
+            ${agentAddr ? `<button id="btn-send-agent" class="btn btn--secondary" style="white-space:nowrap;padding:0.4rem 0.6rem;font-size:0.7rem">Agent</button>` : ''}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount</label>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input type="number" id="send-amount" class="form-input"
+              placeholder="0.00" min="0" step="any" style="width:10rem;text-align:right">
+            <span id="send-unit" style="font-size:0.8rem;color:var(--text-secondary);min-width:3rem">ALGO</span>
+          </div>
+          <div class="form-hint" id="send-hint">1 ALGO = 1,000,000 microALGO</div>
+        </div>
+        <button id="btn-send" class="btn btn--primary" style="width:100%">
+          Send
+        </button>
+      </div>
+
       <!-- Agent Connection Section -->
       <div class="setup-card" style="max-width:100%;margin-top:1rem">
         <div class="setup-card__title">Agent Connection</div>
@@ -217,6 +248,107 @@ export function bindSettingsEvents(): void {
       deviceNameInput.value = getDeviceName() ?? '';
       showToast('Invalid name (letters, numbers, hyphens, underscores, max 16)', 'error');
     }
+  });
+
+  // ── Send section ──
+  let sendAsset: 'algo' | 'usdc' = 'algo';
+  const MAINNET_USDC_ASA = 31566704;
+
+  const algoTab = document.getElementById('btn-send-tab-algo');
+  const usdcTab = document.getElementById('btn-send-tab-usdc');
+  const sendUnit = document.getElementById('send-unit');
+  const sendHint = document.getElementById('send-hint');
+  const sendAmountInput = document.getElementById('send-amount') as HTMLInputElement | null;
+
+  const updateSendTabs = () => {
+    if (algoTab) algoTab.className = `btn btn--secondary send-tab${sendAsset === 'algo' ? ' send-tab--active' : ''}`;
+    if (usdcTab) usdcTab.className = `btn btn--secondary send-tab${sendAsset === 'usdc' ? ' send-tab--active' : ''}`;
+    if (sendUnit) sendUnit.textContent = sendAsset === 'algo' ? 'ALGO' : 'USDC';
+    if (sendHint) sendHint.textContent = sendAsset === 'algo' ? '1 ALGO = 1,000,000 microALGO' : '6 decimal places (e.g. 1.00 = 1 USDC)';
+    if (sendAmountInput) sendAmountInput.value = '';
+  };
+
+  algoTab?.addEventListener('click', () => { sendAsset = 'algo'; updateSendTabs(); });
+  usdcTab?.addEventListener('click', () => {
+    if ((usdcTab as HTMLButtonElement).disabled) return;
+    sendAsset = 'usdc';
+    updateSendTabs();
+  });
+
+  // Pre-fill agent address
+  document.getElementById('btn-send-agent')?.addEventListener('click', () => {
+    const recipientInput = document.getElementById('send-recipient') as HTMLInputElement | null;
+    const agentAddress = store.getState().agent.connection?.address;
+    if (recipientInput && agentAddress) {
+      recipientInput.value = agentAddress;
+    }
+  });
+
+  // Send button
+  document.getElementById('btn-send')?.addEventListener('click', () => {
+    const recipientInput = document.getElementById('send-recipient') as HTMLInputElement | null;
+    const amountInput = document.getElementById('send-amount') as HTMLInputElement | null;
+    const recipient = recipientInput?.value.trim() ?? '';
+    const amountStr = amountInput?.value.trim() ?? '';
+    const amount = parseFloat(amountStr);
+
+    if (!recipient || recipient.length < 58) {
+      showToast('Enter a valid Algorand address', 'error');
+      return;
+    }
+    if (!amountStr || isNaN(amount) || amount <= 0) {
+      showToast('Enter a positive amount', 'error');
+      return;
+    }
+
+    const displayAmount = `${amount} ${sendAsset === 'algo' ? 'ALGO' : 'USDC'}`;
+    const shortAddr = `${recipient.slice(0, 6)}...${recipient.slice(-6)}`;
+
+    // Confirmation modal
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <div class="modal__title">Confirm Send</div>
+        <div style="font-size:0.85rem;margin-bottom:0.75rem;color:var(--text-secondary)">
+          Send <strong style="color:var(--accent-green)">${displayAmount}</strong> to
+          <code style="font-size:0.7rem;color:var(--accent-cyan)">${shortAddr}</code>?
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--secondary" id="send-cancel">Cancel</button>
+          <button class="btn btn--primary" id="send-confirm">Send</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeOverlay = () => overlay.remove();
+    document.getElementById('send-cancel')?.addEventListener('click', closeOverlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+
+    document.getElementById('send-confirm')?.addEventListener('click', async () => {
+      closeOverlay();
+      const sendBtn = document.getElementById('btn-send') as HTMLButtonElement | null;
+      if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending...'; }
+
+      try {
+        let txid: string;
+        if (sendAsset === 'algo') {
+          const microAlgos = Math.round(amount * 1_000_000);
+          txid = await messaging.sendAlgo(recipient, microAlgos);
+        } else {
+          const usdcMicro = Math.round(amount * 1_000_000);
+          txid = await messaging.sendUsdc(recipient, usdcMicro, MAINNET_USDC_ASA);
+        }
+        showToast(`Sent! txid: ${txid.slice(0, 12)}...`, 'success');
+        if (recipientInput) recipientInput.value = '';
+        if (amountInput) amountInput.value = '';
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Send failed', 'error');
+      } finally {
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+      }
+    });
   });
 
   // Export mnemonic
