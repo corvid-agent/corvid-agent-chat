@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { escapeHtml, bufferToBase64, base64ToBuffer, shortenAddress, formatTime } from './utils.ts';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { escapeHtml, bufferToBase64, base64ToBuffer, shortenAddress, formatTime, formatDateLabel } from './utils.ts';
 
 describe('escapeHtml', () => {
   it('escapes ampersands', () => {
@@ -93,5 +93,53 @@ describe('formatTime', () => {
   it('formats midnight', () => {
     const d = new Date(2026, 0, 15, 0, 0);
     expect(formatTime(d)).toBe('00:00');
+  });
+});
+
+describe('formatDateLabel', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns "Today" for the current date', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 1, 28, 15, 0));
+    expect(formatDateLabel(new Date(2026, 1, 28, 9, 30))).toBe('Today');
+  });
+
+  it('returns "Yesterday" for the previous day', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 1, 28, 15, 0));
+    expect(formatDateLabel(new Date(2026, 1, 27, 22, 0))).toBe('Yesterday');
+  });
+
+  it('returns short date for dates within the current year', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 1, 28, 15, 0));
+    expect(formatDateLabel(new Date(2026, 1, 25, 10, 0))).toBe('Feb 25');
+  });
+
+  it('returns date with year for dates in a previous year', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 1, 28, 15, 0));
+    expect(formatDateLabel(new Date(2025, 11, 31, 10, 0))).toBe('Dec 31, 2025');
+  });
+
+  it('returns short date for January 1 of the current year', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 5, 15, 12, 0));
+    expect(formatDateLabel(new Date(2026, 0, 1, 0, 0))).toBe('Jan 1');
+  });
+
+  it('handles "Today" at midnight boundary', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 1, 28, 0, 1));
+    expect(formatDateLabel(new Date(2026, 1, 28, 0, 0))).toBe('Today');
+  });
+
+  it('handles "Yesterday" at midnight boundary', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 1, 28, 0, 1));
+    expect(formatDateLabel(new Date(2026, 1, 27, 23, 59))).toBe('Yesterday');
   });
 });

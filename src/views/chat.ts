@@ -7,7 +7,7 @@ import { getAccount } from '../wallet.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { showToast } from '../toast.ts';
 import type { Attachment, ChatMessage } from '../types.ts';
-import { escapeHtml, shortenAddress, formatTime } from '../utils.ts';
+import { escapeHtml, shortenAddress, formatTime, formatDateLabel } from '../utils.ts';
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 import { getDeviceName } from '../device-name.ts';
 import { processFile, createImagePreview, createFileDownload, formatFileSize, isAcceptedType } from '../file-handler.ts';
@@ -35,6 +35,9 @@ let searchQuery = '';
 let searchMatches: HTMLElement[] = [];
 let searchCurrentIdx = -1;
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+/* ── Date separator tracking ── */
+let lastMessageDate: string | null = null;
 
 /* ── Pending attachment state ── */
 let pendingAttachment: Attachment | null = null;
@@ -736,6 +739,17 @@ function appendMessage(msg: ChatMessage): void {
     hideThinking();
   }
 
+  // Insert date separator if the day changed
+  const msgDate = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
+  const dayKey = `${msgDate.getFullYear()}-${msgDate.getMonth()}-${msgDate.getDate()}`;
+  if (dayKey !== lastMessageDate) {
+    lastMessageDate = dayKey;
+    const sep = document.createElement('div');
+    sep.className = 'divider date-separator';
+    sep.textContent = formatDateLabel(msgDate);
+    outputEl.appendChild(sep);
+  }
+
   const div = document.createElement('div');
   div.className = `msg msg--${msg.direction === 'sent' ? 'outbound' : 'inbound'}`;
   div.id = `msg-${msg.id}`;
@@ -859,6 +873,7 @@ export function cleanupChat(): void {
 
   pendingAttachment = null;
   pendingCaption = null;
+  lastMessageDate = null;
   outputEl = null;
   inputEl = null;
 }

@@ -788,6 +788,13 @@ mark.search-highlight {
     border-top: 1px solid var(--border);
 }
 
+/* Date separator in chat */
+.date-separator {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    user-select: none;
+}
+
 /* Toast notifications */
 .toast-container {
     position: fixed; top: calc(0.75rem + env(safe-area-inset-top)); right: calc(0.75rem + env(safe-area-inset-right));
