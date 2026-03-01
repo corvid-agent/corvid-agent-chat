@@ -183,7 +183,8 @@ export function bindChatEvents(): void {
 
   // Subscribe to incoming messages
   unsubMessages = messaging.onMessage((msg: ChatMessage) => {
-    store.addMessage(msg);
+    // addMessage returns false if deduplicated (e.g. optimistic send already exists)
+    if (!store.addMessage(msg)) return;
     appendMessage(msg);
     // Persist to IndexedDB
     saveMessage(msg, connection.address);

@@ -102,10 +102,12 @@ class Store {
     this.notify();
   }
 
-  addMessage(message: ChatMessage) {
-    // Deduplicate by id
-    const existing = this.state.chat.messages.find((m) => m.id === message.id);
-    if (existing) return;
+  addMessage(message: ChatMessage): boolean {
+    // Deduplicate by id or by txid (prevents optimistic + polled duplicates)
+    const existing = this.state.chat.messages.find(
+      (m) => m.id === message.id || (message.txid && m.txid === message.txid)
+    );
+    if (existing) return false;
 
     this.state = {
       ...this.state,
@@ -117,6 +119,7 @@ class Store {
       },
     };
     this.notify();
+    return true;
   }
 
   updateMessageStatus(id: string, status: ChatMessage['status'], txid?: string) {
