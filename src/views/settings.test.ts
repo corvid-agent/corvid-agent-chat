@@ -18,6 +18,7 @@ const {
   mockDb,
   mockIdleLock,
   mockDeviceName,
+  mockRateLimiter,
 } = vi.hoisted(() => {
   const fakeConnection: AgentConnection = {
     address: 'AGENTADDRESS1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEF',
@@ -73,6 +74,10 @@ const {
       getDeviceName: vi.fn((): string | null => 'mac-studio'),
       setDeviceName: vi.fn((): boolean => true),
     },
+    mockRateLimiter: {
+      getCooldownMs: vi.fn((): number => 1000),
+      setCooldownMs: vi.fn(),
+    },
   };
 });
 
@@ -84,6 +89,7 @@ vi.mock('../toast.ts', () => mockToast);
 vi.mock('../db.ts', () => mockDb);
 vi.mock('../idle-lock.ts', () => mockIdleLock);
 vi.mock('../device-name.ts', () => mockDeviceName);
+vi.mock('../rate-limiter.ts', () => mockRateLimiter);
 vi.mock('../utils.ts', () => ({
   escapeHtml: (s: string) => s,
 }));
@@ -488,6 +494,71 @@ describe('settings view', () => {
 
       expect(mockMessaging.destroy).not.toHaveBeenCalled();
       expect(mockWallet.deleteWallet).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── send cooldown ──
+
+  describe('send cooldown setting', () => {
+    it('renders send cooldown field', () => {
+      const html = renderSettings();
+      expect(html).toContain('id="send-cooldown"');
+      expect(html).toContain('Send cooldown');
+    });
+
+    it('renders current cooldown value in seconds', () => {
+      const html = renderSettings();
+      expect(html).toContain('value="1.0"');
+    });
+
+    it('updates cooldown on valid input', () => {
+      setup();
+      const input = document.getElementById('send-cooldown') as HTMLInputElement;
+      input.value = '2.0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(mockRateLimiter.setCooldownMs).toHaveBeenCalledWith(2000);
+      expect(mockToast.showToast).toHaveBeenCalledWith('Send cooldown set to 2s', 'info');
+    });
+
+    it('accepts 0 to disable rate limiting', () => {
+      setup();
+      const input = document.getElementById('send-cooldown') as HTMLInputElement;
+      input.value = '0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(mockRateLimiter.setCooldownMs).toHaveBeenCalledWith(0);
+      expect(mockToast.showToast).toHaveBeenCalledWith('Send cooldown set to 0s', 'info');
+    });
+
+    it('rejects negative values', () => {
+      setup();
+      const input = document.getElementById('send-cooldown') as HTMLInputElement;
+      input.value = '-1';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(mockRateLimiter.setCooldownMs).not.toHaveBeenCalled();
+      expect(mockToast.showToast).toHaveBeenCalledWith('Cooldown must be 0-10 seconds', 'error');
+    });
+
+    it('rejects values above maximum', () => {
+      setup();
+      const input = document.getElementById('send-cooldown') as HTMLInputElement;
+      input.value = '15';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(mockRateLimiter.setCooldownMs).not.toHaveBeenCalled();
+      expect(mockToast.showToast).toHaveBeenCalledWith('Cooldown must be 0-10 seconds', 'error');
+    });
+
+    it('rejects non-numeric values', () => {
+      setup();
+      const input = document.getElementById('send-cooldown') as HTMLInputElement;
+      input.value = 'abc';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(mockRateLimiter.setCooldownMs).not.toHaveBeenCalled();
+      expect(mockToast.showToast).toHaveBeenCalledWith('Cooldown must be 0-10 seconds', 'error');
     });
   });
 

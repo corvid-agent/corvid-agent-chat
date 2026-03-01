@@ -11,6 +11,7 @@ import { escapeHtml, shortenAddress, formatTime, formatDateLabel } from '../util
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 import { getDeviceName } from '../device-name.ts';
 import { processFile, createImagePreview, createFileDownload, formatFileSize, isAcceptedType } from '../file-handler.ts';
+import { canSend, recordSend, getRemainingCooldown } from '../rate-limiter.ts';
 
 /** Detect macOS for shortcut labels */
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -322,6 +323,23 @@ export function bindChatEvents(): void {
     });
   }
 
+  // Rate limit cooldown timer — re-enables the send button after cooldown
+  let rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function applySendCooldown() {
+    const remaining = getRemainingCooldown();
+    if (remaining > 0 && btnSend) {
+      btnSend.setAttribute('disabled', 'true');
+      btnSend.classList.add('input-bar__send--cooldown');
+      if (rateLimitTimer) clearTimeout(rateLimitTimer);
+      rateLimitTimer = setTimeout(() => {
+        btnSend.classList.remove('input-bar__send--cooldown');
+        updateSendButton();
+        rateLimitTimer = null;
+      }, remaining);
+    }
+  }
+
   // Send message
   const sendMessage = async () => {
     if (!inputEl) return;
@@ -331,6 +349,14 @@ export function bindChatEvents(): void {
 
     // Need either text content or an attachment
     if (!content && !attachment) return;
+
+    // Rate limit check
+    if (!canSend()) {
+      const remaining = getRemainingCooldown();
+      showToast(`Slow down — wait ${(remaining / 1000).toFixed(1)}s`, 'info');
+      applySendCooldown();
+      return;
+    }
 
     // Determine the message content: use typed text, or attachment caption as fallback
     const messageContent = content || caption || '';
@@ -352,10 +378,14 @@ export function bindChatEvents(): void {
     // Persist optimistic message
     saveMessage(outMsg, connection.address);
 
+    // Record send for rate limiting and apply cooldown
+    recordSend();
+
     inputEl.value = '';
     inputEl.style.height = 'auto';
     clearPendingAttachment();
     updateSendButton();
+    applySendCooldown();
 
     store.setSending(true);
     if (btnSend) btnSend.setAttribute('disabled', 'true');
@@ -724,6 +754,7 @@ export function bindChatEvents(): void {
   // Store cleanup function for when view changes
   chatCleanupFn = () => {
     clearInterval(statusTimer);
+    if (rateLimitTimer) clearTimeout(rateLimitTimer);
     document.removeEventListener('keydown', handleGlobalKeydown);
     closeSearch();
     closeShortcuts();
