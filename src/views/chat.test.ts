@@ -18,6 +18,7 @@ const {
   mockToast,
   mockDb,
   mockDeviceName,
+  mockRateLimiter,
 } = vi.hoisted(() => {
   const fakeConnection: AgentConnection = {
     address: 'AGENTADDRESS1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEF',
@@ -82,6 +83,11 @@ const {
     mockDeviceName: {
       getDeviceName: vi.fn((): string | null => null),
     },
+    mockRateLimiter: {
+      canSend: vi.fn((): boolean => true),
+      recordSend: vi.fn(),
+      getRemainingCooldown: vi.fn((): number => 0),
+    },
   };
 });
 
@@ -91,6 +97,7 @@ vi.mock('../wallet.ts', () => mockWallet);
 vi.mock('../toast.ts', () => mockToast);
 vi.mock('../db.ts', () => mockDb);
 vi.mock('../device-name.ts', () => mockDeviceName);
+vi.mock('../rate-limiter.ts', () => mockRateLimiter);
 vi.mock('../markdown.ts', () => ({
   renderMarkdown: vi.fn((text: string) => text),
 }));
@@ -728,6 +735,87 @@ describe('chat view', () => {
       expect(overlay.textContent).toContain('New line');
       expect(overlay.textContent).toContain('Open search');
       expect(overlay.textContent).toContain('Close search');
+    });
+  });
+
+  // ── rate limiting ──
+
+  describe('rate limiting', () => {
+    it('blocks send when rate limited and shows toast', async () => {
+      mockRateLimiter.canSend.mockReturnValue(false);
+      mockRateLimiter.getRemainingCooldown.mockReturnValue(500);
+
+      setupChat();
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+      input.value = 'Rate limited message';
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+
+      expect(mockMessaging.sendMessage).not.toHaveBeenCalled();
+      expect(mockToast.showToast).toHaveBeenCalledWith(
+        'Slow down — wait 0.5s',
+        'info'
+      );
+    });
+
+    it('allows send when not rate limited', async () => {
+      mockRateLimiter.canSend.mockReturnValue(true);
+
+      setupChat();
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+      input.value = 'Allowed message';
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+
+      await vi.waitFor(() => {
+        expect(mockMessaging.sendMessage).toHaveBeenCalledWith('Allowed message', undefined);
+      });
+    });
+
+    it('records send after successful message', async () => {
+      mockRateLimiter.canSend.mockReturnValue(true);
+
+      setupChat();
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+      input.value = 'Test message';
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+
+      await vi.waitFor(() => {
+        expect(mockRateLimiter.recordSend).toHaveBeenCalled();
+      });
+    });
+
+    it('does not record send when rate limited', () => {
+      mockRateLimiter.canSend.mockReturnValue(false);
+      mockRateLimiter.getRemainingCooldown.mockReturnValue(500);
+
+      setupChat();
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+      input.value = 'Blocked message';
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+
+      expect(mockRateLimiter.recordSend).not.toHaveBeenCalled();
+    });
+
+    it('applies cooldown class to send button when rate limited', () => {
+      mockRateLimiter.canSend.mockReturnValue(false);
+      mockRateLimiter.getRemainingCooldown.mockReturnValue(1000);
+
+      setupChat();
+      const input = document.getElementById('chat-input') as HTMLTextAreaElement;
+      const btn = document.getElementById('btn-send')!;
+      input.value = 'Test';
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+
+      expect(btn.classList.contains('input-bar__send--cooldown')).toBe(true);
     });
   });
 

@@ -10,6 +10,7 @@ import { escapeHtml } from '../utils.ts';
 import { deleteDatabase } from '../db.ts';
 import { getIdleTimeout, setIdleTimeout, startIdleLock } from '../idle-lock.ts';
 import { getDeviceName, setDeviceName } from '../device-name.ts';
+import { getCooldownMs, setCooldownMs } from '../rate-limiter.ts';
 
 export function renderSettings(): string {
   const state = store.getState();
@@ -24,6 +25,7 @@ export function renderSettings(): string {
   const network = agent?.network ?? 'mainnet';
   const idleTimeoutMin = Math.round(getIdleTimeout() / 60_000);
   const currentDeviceName = getDeviceName() ?? '';
+  const cooldownSec = (getCooldownMs() / 1000).toFixed(1);
 
   return `
     <div class="header">
@@ -73,6 +75,15 @@ export function renderSettings(): string {
               maxlength="16" style="width:10rem">
           </div>
           <div class="form-hint">Identifies this device in multi-device chat</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Send cooldown</label>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input type="number" id="send-cooldown" class="form-input" value="${cooldownSec}"
+              min="0" max="10" step="0.5" style="width:5rem;text-align:center">
+            <span style="font-size:0.75rem;color:var(--text-secondary)">seconds</span>
+          </div>
+          <div class="form-hint">Minimum delay between messages (prevents accidental double-sends)</div>
         </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           <button id="btn-export-mnemonic" class="btn btn--secondary">
@@ -247,6 +258,19 @@ export function bindSettingsEvents(): void {
     } else {
       deviceNameInput.value = getDeviceName() ?? '';
       showToast('Invalid name (letters, numbers, hyphens, underscores, max 16)', 'error');
+    }
+  });
+
+  // Send cooldown setting
+  const cooldownInput = document.getElementById('send-cooldown') as HTMLInputElement | null;
+  cooldownInput?.addEventListener('change', () => {
+    const val = parseFloat(cooldownInput.value);
+    if (!isNaN(val) && val >= 0 && val <= 10) {
+      setCooldownMs(Math.round(val * 1000));
+      showToast(`Send cooldown set to ${val}s`, 'info');
+    } else {
+      cooldownInput.value = (getCooldownMs() / 1000).toFixed(1);
+      showToast('Cooldown must be 0-10 seconds', 'error');
     }
   });
 
