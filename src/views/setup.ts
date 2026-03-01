@@ -27,72 +27,73 @@ export function renderSetup(): string {
 
 function renderCreateView(): string {
   return `
-    <div class="setup-view">
-      <div class="setup-view__title">CORVID CHAT</div>
-      <div class="setup-view__subtitle">
+    <main id="main-content" class="setup-view" tabindex="-1">
+      <h1 class="setup-view__title">CORVID CHAT</h1>
+      <p class="setup-view__subtitle">
         Decentralized messaging powered by Algorand.
         Create or import a wallet to get started.
-      </div>
+      </p>
 
-      <div class="setup-card">
-        <div class="setup-card__title">Create Wallet</div>
+      <section class="setup-card" aria-labelledby="create-wallet-heading">
+        <h2 id="create-wallet-heading" class="setup-card__title">Create Wallet</h2>
         <div class="form-group">
-          <label class="form-label">Password</label>
+          <label class="form-label" for="create-password">Password</label>
           <input type="password" id="create-password" class="form-input"
-            placeholder="Choose a password..." autocomplete="new-password">
-          <div class="form-hint">Encrypts your wallet locally</div>
+            placeholder="Choose a password..." autocomplete="new-password"
+            aria-describedby="create-password-hint" required>
+          <div id="create-password-hint" class="form-hint">Encrypts your wallet locally</div>
         </div>
         <div class="form-group">
-          <label class="form-label">Confirm Password</label>
+          <label class="form-label" for="create-password-confirm">Confirm Password</label>
           <input type="password" id="create-password-confirm" class="form-input"
-            placeholder="Confirm password..." autocomplete="new-password">
+            placeholder="Confirm password..." autocomplete="new-password" required>
         </div>
         <button id="btn-create" class="btn btn--primary btn--full">
           Generate New Wallet
         </button>
-      </div>
+      </section>
 
-      <div class="divider">or</div>
+      <div class="divider" role="separator">or</div>
 
-      <div class="setup-card">
-        <div class="setup-card__title">Import Wallet</div>
+      <section class="setup-card" aria-labelledby="import-wallet-heading">
+        <h2 id="import-wallet-heading" class="setup-card__title">Import Wallet</h2>
         <div class="form-group">
-          <label class="form-label">25-word Mnemonic</label>
+          <label class="form-label" for="import-mnemonic">25-word Mnemonic</label>
           <textarea id="import-mnemonic" class="form-input form-textarea"
             placeholder="Enter your Algorand mnemonic..." rows="3"></textarea>
         </div>
         <div class="form-group">
-          <label class="form-label">Password</label>
+          <label class="form-label" for="import-password">Password</label>
           <input type="password" id="import-password" class="form-input"
-            placeholder="Choose a password..." autocomplete="new-password">
+            placeholder="Choose a password..." autocomplete="new-password" required>
         </div>
         <button id="btn-import" class="btn btn--secondary btn--full">
           Import Wallet
         </button>
-      </div>
-    </div>
+      </section>
+    </main>
   `;
 }
 
 function renderUnlockView(address: string, hasAgent: boolean): string {
   const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
   return `
-    <div class="setup-view">
-      <div class="setup-view__title">CORVID CHAT</div>
-      <div class="setup-view__subtitle">
+    <main id="main-content" class="setup-view" tabindex="-1">
+      <h1 class="setup-view__title">CORVID CHAT</h1>
+      <p class="setup-view__subtitle">
         Welcome back. Unlock your wallet to continue.
-      </div>
+      </p>
 
-      <div class="setup-card">
-        <div class="setup-card__title">Unlock Wallet</div>
+      <section class="setup-card" aria-labelledby="unlock-wallet-heading">
+        <h2 id="unlock-wallet-heading" class="setup-card__title">Unlock Wallet</h2>
         <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
-          <span class="status-dot status-dot--grey"></span>
+          <span class="status-dot status-dot--grey" aria-hidden="true"></span>
           <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-secondary)">
             ${shortAddr}
           </span>
         </div>
         <div class="form-group">
-          <label class="form-label">Password</label>
+          <label class="form-label" for="unlock-password">Password</label>
           <input type="password" id="unlock-password" class="form-input"
             placeholder="Enter your password..." autocomplete="current-password"
             autofocus>
@@ -100,15 +101,15 @@ function renderUnlockView(address: string, hasAgent: boolean): string {
         <button id="btn-unlock" class="btn btn--primary btn--full">
           Unlock
         </button>
-        ${hasAgent ? '<div class="form-hint" style="text-align:center;margin-top:0.75rem">Agent connection saved</div>' : ''}
-      </div>
+        ${hasAgent ? '<div class="form-hint" style="text-align:center;margin-top:0.75rem" role="status">Agent connection saved</div>' : ''}
+      </section>
 
       <div style="margin-top:1rem">
         <button id="btn-reset-wallet" class="btn btn--danger" style="font-size:0.7rem">
           Reset Wallet
         </button>
       </div>
-    </div>
+    </main>
   `;
 }
 

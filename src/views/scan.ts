@@ -7,44 +7,45 @@ import { showToast } from '../toast.ts';
 
 export function renderScan(): string {
   return `
-    <div class="header">
+    <header class="header" role="banner">
       <div class="header__brand">
-        <div class="header__title">Connect Agent</div>
+        <h1 class="header__title">Connect Agent</h1>
       </div>
-      <div class="header__controls">
-        <button id="btn-back-setup" class="icon-btn" title="Back">&#x2190;</button>
-      </div>
-    </div>
+      <nav class="header__controls" aria-label="Navigation">
+        <button id="btn-back-setup" class="icon-btn" aria-label="Back to setup">&#x2190;</button>
+      </nav>
+    </header>
 
-    <div class="setup-view" style="justify-content: flex-start; padding-top: 1.5rem">
-      <div class="setup-view__subtitle" style="margin-bottom: 1.5rem">
+    <main id="main-content" class="setup-view" style="justify-content: flex-start; padding-top: 1.5rem" tabindex="-1">
+      <p class="setup-view__subtitle" style="margin-bottom: 1.5rem">
         Scan the QR code from your agent's admin settings to establish an encrypted connection.
-      </div>
+      </p>
 
-      <div class="setup-card" style="max-width:340px">
-        <div class="tabs">
-          <button class="tab tab--active" id="tab-camera">Camera</button>
-          <button class="tab" id="tab-manual">Manual</button>
+      <section class="setup-card" style="max-width:340px" aria-labelledby="connect-heading">
+        <h2 id="connect-heading" class="sr-only">Connection method</h2>
+        <div class="tabs" role="tablist" aria-label="Connection method">
+          <button class="tab tab--active" id="tab-camera" role="tab" aria-selected="true" aria-controls="camera-panel">Camera</button>
+          <button class="tab" id="tab-manual" role="tab" aria-selected="false" aria-controls="manual-panel">Manual</button>
         </div>
 
-        <div id="camera-panel">
-          <div class="qr-scanner" id="qr-reader">
-            <div class="qr-scanner__overlay">
+        <div id="camera-panel" role="tabpanel" aria-labelledby="tab-camera">
+          <div class="qr-scanner" id="qr-reader" aria-label="QR code scanner">
+            <div class="qr-scanner__overlay" aria-live="polite">
               <span>Starting camera...</span>
             </div>
           </div>
-          <div class="form-hint" style="text-align:center;margin-top:0.5rem">
+          <p class="form-hint" style="text-align:center;margin-top:0.5rem">
             Point camera at the PSK QR code
-          </div>
+          </p>
         </div>
 
-        <div id="manual-panel" style="display:none">
+        <div id="manual-panel" role="tabpanel" aria-labelledby="tab-manual" style="display:none">
           <div class="form-group">
-            <label class="form-label">PSK Exchange URI</label>
+            <label class="form-label" for="manual-uri">PSK Exchange URI</label>
             <textarea id="manual-uri" class="form-input form-textarea"
               placeholder="algochat-psk://v1?addr=...&psk=...&label=..." rows="4"
-            ></textarea>
-            <div class="form-hint">
+              aria-describedby="manual-uri-hint"></textarea>
+            <div id="manual-uri-hint" class="form-hint">
               Paste the URI from your agent's admin panel
             </div>
           </div>
@@ -52,8 +53,8 @@ export function renderScan(): string {
             Connect
           </button>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   `;
 }
 
@@ -68,7 +69,8 @@ export function bindScanEvents(): void {
 
   tabCamera?.addEventListener('click', () => {
     tabCamera.className = 'tab tab--active';
-    if (tabManual) tabManual.className = 'tab';
+    tabCamera.setAttribute('aria-selected', 'true');
+    if (tabManual) { tabManual.className = 'tab'; tabManual.setAttribute('aria-selected', 'false'); }
     if (cameraPanel) cameraPanel.style.display = '';
     if (manualPanel) manualPanel.style.display = 'none';
     // Start scanning when switching to camera
@@ -78,8 +80,9 @@ export function bindScanEvents(): void {
   });
 
   tabManual?.addEventListener('click', () => {
-    if (tabCamera) tabCamera.className = 'tab';
+    if (tabCamera) { tabCamera.className = 'tab'; tabCamera.setAttribute('aria-selected', 'false'); }
     tabManual.className = 'tab tab--active';
+    tabManual.setAttribute('aria-selected', 'true');
     if (cameraPanel) cameraPanel.style.display = 'none';
     if (manualPanel) manualPanel.style.display = '';
     // Stop scanning when switching to manual

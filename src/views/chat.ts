@@ -55,84 +55,86 @@ export function renderChat(): string {
   const network = agent?.network ?? 'mainnet';
 
   return `
-    <div class="header">
+    <header class="header" role="banner">
       <div class="header__brand">
-        <div id="connection-status" class="header__status"></div>
-        <div class="header__title">${escapeHtml(agentLabel)}</div>
-        <span class="network-badge network-badge--${network}">${network}</span>
+        <div id="connection-status" class="header__status" role="status" aria-label="Agent ${escapeHtml(agentLabel)} disconnected"></div>
+        <h1 class="header__title">${escapeHtml(agentLabel)}</h1>
+        <span class="network-badge network-badge--${network}" aria-label="Network: ${network}">${network}</span>
       </div>
-      <div class="header__controls">
-        <div class="wallet-badge" id="wallet-badge" title="${wallet.address ?? ''}">
-          <span class="wallet-badge__dot"></span>
+      <nav class="header__controls" aria-label="Chat controls">
+        <button class="wallet-badge" id="wallet-badge" title="${wallet.address ?? ''}" aria-label="Copy wallet address ${walletAddr}">
+          <span class="wallet-badge__dot" aria-hidden="true"></span>
           <span class="wallet-badge__addr">${walletAddr}</span>
-        </div>
-        <button id="btn-search" class="icon-btn" title="Search messages">&#x1F50D;</button>
-        <button id="btn-shortcuts" class="icon-btn" title="Keyboard shortcuts">?</button>
-        <button id="btn-settings" class="icon-btn" title="Settings">&#x2699;</button>
-      </div>
-    </div>
+        </button>
+        <button id="btn-search" class="icon-btn" aria-label="Search messages" aria-expanded="false" aria-controls="search-bar">&#x1F50D;</button>
+        <button id="btn-shortcuts" class="icon-btn" aria-label="Keyboard shortcuts" aria-expanded="false" aria-controls="shortcuts-overlay">?</button>
+        <button id="btn-settings" class="icon-btn" aria-label="Settings">&#x2699;</button>
+      </nav>
+    </header>
 
-    <div class="search-bar" id="search-bar" style="display:none">
+    <div class="search-bar" id="search-bar" role="search" aria-label="Search messages" style="display:none">
       <div class="search-bar__inner">
-        <input id="search-input" class="search-bar__field" type="text"
+        <label for="search-input" class="sr-only">Search messages</label>
+        <input id="search-input" class="search-bar__field" type="search"
           placeholder="Search messages..." autocomplete="off" />
-        <span id="search-count" class="search-bar__count"></span>
-        <button id="search-prev" class="search-bar__nav" title="Previous match" disabled>&#x25B2;</button>
-        <button id="search-next" class="search-bar__nav" title="Next match" disabled>&#x25BC;</button>
-        <button id="search-close" class="search-bar__close" title="Close search">&#x2715;</button>
+        <span id="search-count" class="search-bar__count" aria-live="polite" role="status"></span>
+        <button id="search-prev" class="search-bar__nav" aria-label="Previous match" disabled>&#x25B2;</button>
+        <button id="search-next" class="search-bar__nav" aria-label="Next match" disabled>&#x25BC;</button>
+        <button id="search-close" class="search-bar__close" aria-label="Close search">&#x2715;</button>
       </div>
     </div>
 
-    <div class="connection-bar" id="connection-bar">
-      <span class="status-dot status-dot--grey" id="poll-dot"></span>
+    <div class="connection-bar" id="connection-bar" role="status" aria-live="polite">
+      <span class="status-dot status-dot--grey" id="poll-dot" aria-hidden="true"></span>
       <span class="connection-bar__text" id="connection-text">Connecting...</span>
       <span class="agent-info__addr">${agentAddr}</span>
     </div>
 
-    <div class="terminal">
-      <div class="terminal__output" id="chat-output">
-        <div class="msg msg--status">
-          <span class="msg__prompt">[sys] </span>
+    <main id="main-content" class="terminal" tabindex="-1">
+      <div class="terminal__output" id="chat-output" role="log" aria-live="polite" aria-label="Message history">
+        <div class="msg msg--status" role="status">
+          <span class="msg__prompt" aria-hidden="true">[sys] </span>
           <span class="msg__text">Connected to <strong>${escapeHtml(agentLabel)}</strong> via AlgoChat on ${network}</span>
         </div>
       </div>
-    </div>
+    </main>
 
-    <button id="scroll-to-bottom" class="scroll-bottom-btn" title="Scroll to bottom" style="display:none">&#x2193;</button>
+    <button id="scroll-to-bottom" class="scroll-bottom-btn" aria-label="Scroll to latest messages" style="display:none">&#x2193;</button>
 
-    <div id="attachment-preview" class="attachment-preview" style="display:none">
+    <div id="attachment-preview" class="attachment-preview" role="status" aria-live="polite" style="display:none">
       <div class="attachment-preview__inner">
         <span id="attachment-preview-info" class="attachment-preview__info"></span>
-        <button id="attachment-preview-cancel" class="attachment-preview__cancel" title="Remove attachment">&#x2715;</button>
+        <button id="attachment-preview-cancel" class="attachment-preview__cancel" aria-label="Remove attachment">&#x2715;</button>
       </div>
     </div>
 
-    <div class="input-bar">
-      <input id="file-input" type="file" accept="image/*,.txt,.csv,.json,.md,.html" style="display:none" />
-      <button id="btn-attach" class="input-bar__attach" title="Attach file">&#x1F4CE;</button>
+    <footer class="input-bar" role="contentinfo">
+      <input id="file-input" type="file" accept="image/*,.txt,.csv,.json,.md,.html" style="display:none" aria-hidden="true" tabindex="-1" />
+      <button id="btn-attach" class="input-bar__attach" aria-label="Attach file">&#x1F4CE;</button>
+      <label for="chat-input" class="sr-only">Message</label>
       <textarea id="chat-input" class="input-bar__field" rows="1"
-        placeholder="Type a message..." autocomplete="off"></textarea>
-      <button id="btn-send" class="input-bar__send" disabled>Send</button>
-    </div>
+        placeholder="Type a message..." autocomplete="off" aria-label="Type a message"></textarea>
+      <button id="btn-send" class="input-bar__send" disabled aria-disabled="true">Send</button>
+    </footer>
 
-    <div id="shortcuts-overlay" class="modal-overlay" style="display:none">
-      <div class="modal shortcuts-modal">
-        <div class="modal__title">Keyboard Shortcuts</div>
+    <div id="shortcuts-overlay" class="modal-overlay" style="display:none" role="presentation">
+      <div class="modal shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
+        <h2 id="shortcuts-modal-title" class="modal__title">Keyboard Shortcuts</h2>
         <div class="shortcuts-list">
           <div class="shortcuts-group">
-            <div class="shortcuts-group__title">Messages</div>
+            <h3 class="shortcuts-group__title">Messages</h3>
             <div class="shortcut-row"><kbd>Enter</kbd><span>Send message</span></div>
             <div class="shortcut-row"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>New line</span></div>
           </div>
           <div class="shortcuts-group">
-            <div class="shortcuts-group__title">Search</div>
+            <h3 class="shortcuts-group__title">Search</h3>
             <div class="shortcut-row"><kbd>${isMac ? 'Cmd' : 'Ctrl'}</kbd> + <kbd>F</kbd><span>Open search</span></div>
             <div class="shortcut-row"><kbd>Escape</kbd><span>Close search</span></div>
             <div class="shortcut-row"><kbd>Enter</kbd><span>Next match</span></div>
             <div class="shortcut-row"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>Previous match</span></div>
           </div>
           <div class="shortcuts-group">
-            <div class="shortcuts-group__title">Navigation</div>
+            <h3 class="shortcuts-group__title">Navigation</h3>
             <div class="shortcut-row"><kbd>?</kbd><span>Toggle this help</span></div>
           </div>
         </div>
@@ -223,6 +225,7 @@ export function bindChatEvents(): void {
       store.setAgentOnline(online);
       if (connectionStatus) {
         connectionStatus.className = `header__status ${online ? 'connected' : ''}`;
+        connectionStatus.setAttribute('aria-label', `Agent ${online ? 'connected' : 'disconnected'}`);
       }
       if (connectionText) {
         connectionText.textContent = online ? 'Connected' : 'Searching...';
@@ -469,8 +472,10 @@ export function bindChatEvents(): void {
     const hasContent = inputEl.value.trim().length > 0 || pendingAttachment !== null;
     if (hasContent) {
       btnSend.removeAttribute('disabled');
+      btnSend.setAttribute('aria-disabled', 'false');
     } else {
       btnSend.setAttribute('disabled', 'true');
+      btnSend.setAttribute('aria-disabled', 'true');
     }
   }
 
@@ -487,6 +492,7 @@ export function bindChatEvents(): void {
     if (!searchBar || !searchInput) return;
     searchOpen = true;
     searchBar.style.display = '';
+    btnSearch?.setAttribute('aria-expanded', 'true');
     searchInput.value = searchQuery;
     searchInput.focus();
     if (searchQuery) {
@@ -498,6 +504,7 @@ export function bindChatEvents(): void {
     if (!searchBar) return;
     searchOpen = false;
     searchBar.style.display = 'none';
+    btnSearch?.setAttribute('aria-expanded', 'false');
     clearSearchHighlights();
     searchQuery = '';
     searchMatches = [];
@@ -507,6 +514,7 @@ export function bindChatEvents(): void {
       searchDebounceTimer = null;
     }
     if (searchCount) searchCount.textContent = '';
+    btnSearch?.focus();
   }
 
   function clearSearchHighlights() {
@@ -698,12 +706,43 @@ export function bindChatEvents(): void {
   const btnShortcuts = document.getElementById('btn-shortcuts');
   const shortcutsClose = document.getElementById('shortcuts-close');
 
+  let shortcutsTrapHandler: ((e: KeyboardEvent) => void) | null = null;
+
   function openShortcuts() {
-    if (shortcutsOverlay) shortcutsOverlay.style.display = '';
+    if (!shortcutsOverlay) return;
+    shortcutsOverlay.style.display = '';
+    btnShortcuts?.setAttribute('aria-expanded', 'true');
+    shortcutsClose?.focus();
+
+    // Focus trap within the modal
+    shortcutsTrapHandler = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const modal = shortcutsOverlay.querySelector('.modal') as HTMLElement;
+      if (!modal) return;
+      const focusable = modal.querySelectorAll<HTMLElement>('button, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', shortcutsTrapHandler);
   }
 
   function closeShortcuts() {
-    if (shortcutsOverlay) shortcutsOverlay.style.display = 'none';
+    if (!shortcutsOverlay) return;
+    shortcutsOverlay.style.display = 'none';
+    btnShortcuts?.setAttribute('aria-expanded', 'false');
+    if (shortcutsTrapHandler) {
+      document.removeEventListener('keydown', shortcutsTrapHandler);
+      shortcutsTrapHandler = null;
+    }
+    btnShortcuts?.focus();
   }
 
   btnShortcuts?.addEventListener('click', () => {
@@ -756,6 +795,10 @@ export function bindChatEvents(): void {
     clearInterval(statusTimer);
     if (rateLimitTimer) clearTimeout(rateLimitTimer);
     document.removeEventListener('keydown', handleGlobalKeydown);
+    if (shortcutsTrapHandler) {
+      document.removeEventListener('keydown', shortcutsTrapHandler);
+      shortcutsTrapHandler = null;
+    }
     closeSearch();
     closeShortcuts();
     clearPendingAttachment();
@@ -880,8 +923,10 @@ function showThinking(): void {
   const div = document.createElement('div');
   div.className = 'thinking';
   div.id = 'thinking-indicator';
+  div.setAttribute('role', 'status');
+  div.setAttribute('aria-live', 'polite');
   div.innerHTML = `
-    <span class="thinking__dot"></span>
+    <span class="thinking__dot" aria-hidden="true"></span>
     <span>Agent is thinking...</span>
   `;
   outputEl.appendChild(div);

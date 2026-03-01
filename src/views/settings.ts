@@ -28,62 +28,66 @@ export function renderSettings(): string {
   const cooldownSec = (getCooldownMs() / 1000).toFixed(1);
 
   return `
-    <div class="header">
+    <header class="header" role="banner">
       <div class="header__brand">
-        <div class="header__title">Settings</div>
+        <h1 class="header__title">Settings</h1>
       </div>
-      <div class="header__controls">
-        <button id="btn-back-chat" class="icon-btn" title="Back to chat">&#x2190;</button>
-      </div>
-    </div>
+      <nav class="header__controls" aria-label="Navigation">
+        <button id="btn-back-chat" class="icon-btn" aria-label="Back to chat">&#x2190;</button>
+      </nav>
+    </header>
 
-    <div style="flex:1;overflow-y:auto;padding:1.25rem">
+    <main id="main-content" style="flex:1;overflow-y:auto;padding:1.25rem" tabindex="-1">
       <!-- Wallet Section -->
-      <div class="setup-card" style="max-width:100%">
-        <div class="setup-card__title">Wallet</div>
+      <section class="setup-card" style="max-width:100%" aria-labelledby="settings-wallet-heading">
+        <h2 id="settings-wallet-heading" class="setup-card__title">Wallet</h2>
         <div class="form-group">
-          <label class="form-label">Address</label>
+          <label class="form-label" for="wallet-address-display">Address</label>
           <div style="display:flex;align-items:center;gap:0.5rem">
-            <input type="text" class="form-input" value="${walletAddr}" readonly
-              style="font-family:var(--font-mono);font-size:0.7rem">
-            <button id="btn-copy-addr" class="btn btn--secondary" style="white-space:nowrap;padding:0.4rem 0.6rem;font-size:0.7rem">
+            <input type="text" id="wallet-address-display" class="form-input" value="${walletAddr}" readonly
+              style="font-family:var(--font-mono);font-size:0.7rem" aria-readonly="true">
+            <button id="btn-copy-addr" class="btn btn--secondary" style="white-space:nowrap;padding:0.4rem 0.6rem;font-size:0.7rem"
+              aria-label="Copy wallet address">
               Copy
             </button>
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Balance</label>
-          <div style="font-size:0.9rem;color:var(--accent-green)">
+          <span class="form-label" id="balance-label">Balance</span>
+          <div style="font-size:0.9rem;color:var(--accent-green)" aria-labelledby="balance-label">
             ${balanceAlgo} ALGO
           </div>
           <div class="form-hint">${balance.toLocaleString()} microALGO</div>
         </div>
         <div class="form-group">
-          <label class="form-label">Auto-lock timeout</label>
+          <label class="form-label" for="idle-timeout">Auto-lock timeout</label>
           <div style="display:flex;align-items:center;gap:0.5rem">
             <input type="number" id="idle-timeout" class="form-input" value="${idleTimeoutMin}"
-              min="1" max="120" style="width:5rem;text-align:center">
-            <span style="font-size:0.75rem;color:var(--text-secondary)">minutes</span>
+              min="1" max="120" style="width:5rem;text-align:center"
+              aria-describedby="idle-timeout-hint">
+            <span style="font-size:0.75rem;color:var(--text-secondary)" aria-hidden="true">minutes</span>
           </div>
-          <div class="form-hint">Wallet locks automatically after inactivity</div>
+          <div id="idle-timeout-hint" class="form-hint">Wallet locks automatically after inactivity (1-120 minutes)</div>
         </div>
         <div class="form-group">
-          <label class="form-label">Device name</label>
+          <label class="form-label" for="device-name">Device name</label>
           <div style="display:flex;align-items:center;gap:0.5rem">
             <input type="text" id="device-name" class="form-input"
               value="${escapeHtml(currentDeviceName)}" placeholder="e.g. mac, phone"
-              maxlength="16" style="width:10rem">
+              maxlength="16" style="width:10rem"
+              aria-describedby="device-name-hint">
           </div>
-          <div class="form-hint">Identifies this device in multi-device chat</div>
+          <div id="device-name-hint" class="form-hint">Identifies this device in multi-device chat</div>
         </div>
         <div class="form-group">
-          <label class="form-label">Send cooldown</label>
+          <label class="form-label" for="send-cooldown">Send cooldown</label>
           <div style="display:flex;align-items:center;gap:0.5rem">
             <input type="number" id="send-cooldown" class="form-input" value="${cooldownSec}"
-              min="0" max="10" step="0.5" style="width:5rem;text-align:center">
-            <span style="font-size:0.75rem;color:var(--text-secondary)">seconds</span>
+              min="0" max="10" step="0.5" style="width:5rem;text-align:center"
+              aria-describedby="cooldown-hint">
+            <span style="font-size:0.75rem;color:var(--text-secondary)" aria-hidden="true">seconds</span>
           </div>
-          <div class="form-hint">Minimum delay between messages (prevents accidental double-sends)</div>
+          <div id="cooldown-hint" class="form-hint">Minimum delay between messages (0-10 seconds)</div>
         </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           <button id="btn-export-mnemonic" class="btn btn--secondary">
@@ -93,61 +97,62 @@ export function renderSettings(): string {
             Lock Wallet
           </button>
         </div>
-      </div>
+      </section>
 
       <!-- Send Section -->
-      <div class="setup-card" style="max-width:100%;margin-top:1rem">
-        <div class="setup-card__title">Send</div>
-        <div style="display:flex;gap:0.25rem;margin-bottom:0.75rem">
-          <button id="btn-send-tab-algo" class="btn btn--secondary send-tab send-tab--active"
+      <section class="setup-card" style="max-width:100%;margin-top:1rem" aria-labelledby="settings-send-heading">
+        <h2 id="settings-send-heading" class="setup-card__title">Send</h2>
+        <div style="display:flex;gap:0.25rem;margin-bottom:0.75rem" role="tablist" aria-label="Asset type">
+          <button id="btn-send-tab-algo" class="btn btn--secondary send-tab send-tab--active" role="tab" aria-selected="true"
             style="flex:1;padding:0.35rem 0.5rem;font-size:0.75rem">ALGO</button>
-          <button id="btn-send-tab-usdc" class="btn btn--secondary send-tab"
-            style="flex:1;padding:0.35rem 0.5rem;font-size:0.75rem"${network === 'testnet' ? ' disabled title="USDC not available on testnet"' : ''}>USDC</button>
+          <button id="btn-send-tab-usdc" class="btn btn--secondary send-tab" role="tab" aria-selected="false"
+            style="flex:1;padding:0.35rem 0.5rem;font-size:0.75rem"${network === 'testnet' ? ' disabled aria-disabled="true" title="USDC not available on testnet"' : ''}>USDC</button>
         </div>
         <div class="form-group">
-          <label class="form-label">Recipient</label>
+          <label class="form-label" for="send-recipient">Recipient</label>
           <div style="display:flex;align-items:center;gap:0.5rem">
             <input type="text" id="send-recipient" class="form-input"
               placeholder="Algorand address..." style="font-family:var(--font-mono);font-size:0.7rem">
-            ${agentAddr ? `<button id="btn-send-agent" class="btn btn--secondary" style="white-space:nowrap;padding:0.4rem 0.6rem;font-size:0.7rem">Agent</button>` : ''}
+            ${agentAddr ? `<button id="btn-send-agent" class="btn btn--secondary" style="white-space:nowrap;padding:0.4rem 0.6rem;font-size:0.7rem" aria-label="Fill with agent address">Agent</button>` : ''}
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Amount</label>
+          <label class="form-label" for="send-amount">Amount</label>
           <div style="display:flex;align-items:center;gap:0.5rem">
             <input type="number" id="send-amount" class="form-input"
-              placeholder="0.00" min="0" step="any" style="width:10rem;text-align:right">
-            <span id="send-unit" style="font-size:0.8rem;color:var(--text-secondary);min-width:3rem">ALGO</span>
+              placeholder="0.00" min="0" step="any" style="width:10rem;text-align:right"
+              aria-describedby="send-hint">
+            <span id="send-unit" style="font-size:0.8rem;color:var(--text-secondary);min-width:3rem" aria-hidden="true">ALGO</span>
           </div>
           <div class="form-hint" id="send-hint">1 ALGO = 1,000,000 microALGO</div>
         </div>
         <button id="btn-send" class="btn btn--primary" style="width:100%">
           Send
         </button>
-      </div>
+      </section>
 
       <!-- Agent Connection Section -->
-      <div class="setup-card" style="max-width:100%;margin-top:1rem">
-        <div class="setup-card__title">Agent Connection</div>
+      <section class="setup-card" style="max-width:100%;margin-top:1rem" aria-labelledby="settings-agent-heading">
+        <h2 id="settings-agent-heading" class="setup-card__title">Agent Connection</h2>
         ${agent ? `
           <div class="form-group">
-            <label class="form-label">Label</label>
+            <span class="form-label">Label</span>
             <div style="font-size:0.85rem">${escapeHtml(agentLabel)}</div>
           </div>
           <div class="form-group">
-            <label class="form-label">Address</label>
+            <span class="form-label">Address</span>
             <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--accent-cyan);word-break:break-all">
               ${agentAddr}
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Network</label>
-            <span class="network-badge network-badge--${network}">${network}</span>
+            <span class="form-label">Network</span>
+            <span class="network-badge network-badge--${network}" aria-label="Network: ${network}">${network}</span>
           </div>
           <div class="form-group">
-            <label class="form-label">Status</label>
+            <span class="form-label">Status</span>
             <div style="display:flex;align-items:center;gap:0.4rem">
-              <span class="status-dot ${state.agent.online ? 'status-dot--green' : 'status-dot--grey'}"></span>
+              <span class="status-dot ${state.agent.online ? 'status-dot--green' : 'status-dot--grey'}" aria-hidden="true"></span>
               <span style="font-size:0.8rem">${state.agent.online ? 'Online' : 'Offline'}</span>
             </div>
           </div>
@@ -160,57 +165,57 @@ export function renderSettings(): string {
             </button>
           </div>
         ` : `
-          <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem">
+          <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem">
             No agent connected
-          </div>
+          </p>
           <button id="btn-scan-agent" class="btn btn--primary">
             Scan QR Code
           </button>
         `}
-      </div>
+      </section>
 
       <!-- Ecosystem Links -->
-      <div class="setup-card" style="max-width:100%;margin-top:1rem">
-        <div class="setup-card__title">Ecosystem</div>
-        <div class="ecosystem-links">
+      <section class="setup-card" style="max-width:100%;margin-top:1rem" aria-labelledby="settings-eco-heading">
+        <h2 id="settings-eco-heading" class="setup-card__title">Ecosystem</h2>
+        <nav class="ecosystem-links" aria-label="Ecosystem links">
           <a href="https://corvid-agent.github.io/" target="_blank" rel="noopener" class="eco-link">
-            <span class="eco-link__icon">&#x1F3E0;</span>
+            <span class="eco-link__icon" aria-hidden="true">&#x1F3E0;</span>
             <span class="eco-link__text">Home</span>
           </a>
           <a href="https://corvid-agent.github.io/agent-dashboard/" target="_blank" rel="noopener" class="eco-link">
-            <span class="eco-link__icon">&#x1F4CA;</span>
+            <span class="eco-link__icon" aria-hidden="true">&#x1F4CA;</span>
             <span class="eco-link__text">Dashboard</span>
           </a>
           <a href="https://corvid-agent.github.io/agent-profile/" target="_blank" rel="noopener" class="eco-link">
-            <span class="eco-link__icon">&#x1F464;</span>
+            <span class="eco-link__icon" aria-hidden="true">&#x1F464;</span>
             <span class="eco-link__text">Profile</span>
           </a>
           <a href="https://corvid-agent.github.io/algo-explorer/" target="_blank" rel="noopener" class="eco-link">
-            <span class="eco-link__icon">&#x1F50D;</span>
+            <span class="eco-link__icon" aria-hidden="true">&#x1F50D;</span>
             <span class="eco-link__text">Explorer</span>
           </a>
           <a href="https://corvid-agent.github.io/bw-cinema/" target="_blank" rel="noopener" class="eco-link">
-            <span class="eco-link__icon">&#x1F3AC;</span>
+            <span class="eco-link__icon" aria-hidden="true">&#x1F3AC;</span>
             <span class="eco-link__text">Cinema</span>
           </a>
           <a href="https://github.com/corvid-agent/corvid-agent-chat" target="_blank" rel="noopener" class="eco-link">
-            <span class="eco-link__icon">&#x2699;</span>
+            <span class="eco-link__icon" aria-hidden="true">&#x2699;</span>
             <span class="eco-link__text">Source</span>
           </a>
-        </div>
-      </div>
+        </nav>
+      </section>
 
       <!-- Danger Zone -->
-      <div class="setup-card" style="max-width:100%;margin-top:1rem;border-color:rgba(255,51,85,0.3)">
-        <div class="setup-card__title" style="color:var(--accent-red)">Danger Zone</div>
-        <div class="form-hint" style="margin-bottom:0.75rem">
+      <section class="setup-card" style="max-width:100%;margin-top:1rem;border-color:rgba(255,51,85,0.3)" aria-labelledby="settings-danger-heading">
+        <h2 id="settings-danger-heading" class="setup-card__title" style="color:var(--accent-red)">Danger Zone</h2>
+        <p class="form-hint" style="margin-bottom:0.75rem">
           This will delete your wallet and all local data. Make sure you've backed up your mnemonic.
-        </div>
+        </p>
         <button id="btn-delete-all" class="btn btn--danger">
           Delete Wallet &amp; Data
         </button>
-      </div>
-    </div>
+      </section>
+    </main>
   `;
 }
 
@@ -285,8 +290,8 @@ export function bindSettingsEvents(): void {
   const sendAmountInput = document.getElementById('send-amount') as HTMLInputElement | null;
 
   const updateSendTabs = () => {
-    if (algoTab) algoTab.className = `btn btn--secondary send-tab${sendAsset === 'algo' ? ' send-tab--active' : ''}`;
-    if (usdcTab) usdcTab.className = `btn btn--secondary send-tab${sendAsset === 'usdc' ? ' send-tab--active' : ''}`;
+    if (algoTab) { algoTab.className = `btn btn--secondary send-tab${sendAsset === 'algo' ? ' send-tab--active' : ''}`; algoTab.setAttribute('aria-selected', String(sendAsset === 'algo')); }
+    if (usdcTab) { usdcTab.className = `btn btn--secondary send-tab${sendAsset === 'usdc' ? ' send-tab--active' : ''}`; usdcTab.setAttribute('aria-selected', String(sendAsset === 'usdc')); }
     if (sendUnit) sendUnit.textContent = sendAsset === 'algo' ? 'ALGO' : 'USDC';
     if (sendHint) sendHint.textContent = sendAsset === 'algo' ? '1 ALGO = 1,000,000 microALGO' : '6 decimal places (e.g. 1.00 = 1 USDC)';
     if (sendAmountInput) sendAmountInput.value = '';
@@ -331,10 +336,11 @@ export function bindSettingsEvents(): void {
     // Confirmation modal
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
+    overlay.setAttribute('role', 'presentation');
     overlay.innerHTML = `
-      <div class="modal">
-        <div class="modal__title">Confirm Send</div>
-        <div style="font-size:0.85rem;margin-bottom:0.75rem;color:var(--text-secondary)">
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-desc">
+        <h3 id="send-confirm-title" class="modal__title">Confirm Send</h3>
+        <div id="send-confirm-desc" style="font-size:0.85rem;margin-bottom:0.75rem;color:var(--text-secondary)">
           Send <strong style="color:var(--accent-green)">${displayAmount}</strong> to
           <code style="font-size:0.7rem;color:var(--accent-cyan)">${shortAddr}</code>?
         </div>
@@ -345,6 +351,9 @@ export function bindSettingsEvents(): void {
       </div>
     `;
     document.body.appendChild(overlay);
+
+    // Focus the cancel button (safe default)
+    (document.getElementById('send-cancel') as HTMLElement)?.focus();
 
     const closeOverlay = () => overlay.remove();
     document.getElementById('send-cancel')?.addEventListener('click', closeOverlay);
@@ -382,11 +391,12 @@ export function bindSettingsEvents(): void {
       // Show a proper password modal instead of prompt()
       const pwOverlay = document.createElement('div');
       pwOverlay.className = 'modal-overlay';
+      pwOverlay.setAttribute('role', 'presentation');
       pwOverlay.innerHTML = `
-        <div class="modal">
-          <div class="modal__title">Export Mnemonic</div>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
+          <h3 id="export-modal-title" class="modal__title">Export Mnemonic</h3>
           <div class="form-group">
-            <label class="form-label">Wallet Password</label>
+            <label class="form-label" for="export-pw-input">Wallet Password</label>
             <input type="password" id="export-pw-input" class="form-input"
               placeholder="Enter your wallet password..." autocomplete="current-password" autofocus>
           </div>
@@ -420,15 +430,16 @@ export function bindSettingsEvents(): void {
         // Show in a temporary modal-like display
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
+        overlay.setAttribute('role', 'presentation');
         overlay.innerHTML = `
-          <div class="modal">
-            <div class="modal__title">Your Mnemonic</div>
-            <div style="font-family:var(--font-mono);font-size:0.75rem;background:var(--bg-input);padding:0.75rem;border-radius:var(--radius);word-break:break-word;line-height:2;color:var(--accent-amber)">
+          <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="mnemonic-title" aria-describedby="mnemonic-warning">
+            <h3 id="mnemonic-title" class="modal__title">Your Mnemonic</h3>
+            <div style="font-family:var(--font-mono);font-size:0.75rem;background:var(--bg-input);padding:0.75rem;border-radius:var(--radius);word-break:break-word;line-height:2;color:var(--accent-amber)" aria-label="Your recovery mnemonic phrase">
               ${escapeHtml(mnemonic)}
             </div>
-            <div class="form-hint" style="margin-top:0.5rem;color:var(--accent-red)">
+            <p id="mnemonic-warning" class="form-hint" style="margin-top:0.5rem;color:var(--accent-red)">
               Store this securely. Anyone with this mnemonic can access your wallet.
-            </div>
+            </p>
             <div class="modal__actions">
               <button class="btn btn--secondary" id="btn-copy-mnemonic">Copy</button>
               <button class="btn btn--primary" id="btn-close-mnemonic">Close</button>
