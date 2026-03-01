@@ -11,6 +11,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
 
 :root {
     --bg-deep: #0a0a12;
@@ -22,7 +23,7 @@
     --border-bright: #2a2d48;
     --text-primary: #e0e0ec;
     --text-secondary: #9da0b8;
-    --text-tertiary: #6e7290;
+    --text-tertiary: #8b8faa;
     --accent-cyan: #00e5ff;
     --accent-cyan-dim: rgba(0, 229, 255, 0.15);
     --accent-magenta: #ff00aa;
@@ -72,9 +73,23 @@ html, body {
     border-radius: var(--radius);
     z-index: 9999;
     font-size: 0.875rem;
+    text-decoration: none;
 }
 .skip-link:focus {
     top: 0.5rem;
+}
+
+/* ── Screen reader only ── */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ── Layout ── */

@@ -63,6 +63,12 @@ function render() {
       app.innerHTML = renderSetup();
       bindSetupEvents();
   }
+
+  // Move focus to main content region for screen readers
+  const main = app.querySelector('[id="main-content"]') as HTMLElement;
+  if (main) {
+    main.focus({ preventScroll: true });
+  }
 }
 
 /**
