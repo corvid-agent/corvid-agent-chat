@@ -546,9 +546,6 @@ export class MessagingService {
       this.lastRound = maxRound;
       this.saveLastRound();
       this.savePSKState();
-      // Clear processed txids — minRound filtering prevents re-processing old transactions
-      this.processedTxids.clear();
-      this.saveProcessedTxids();
     }
 
     // Also poll for messages sent from our wallet by other devices

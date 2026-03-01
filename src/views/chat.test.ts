@@ -50,7 +50,7 @@ const {
       setAgentConnection: vi.fn(),
       setAgentOnline: vi.fn(),
       setBalance: vi.fn(),
-      addMessage: vi.fn(),
+      addMessage: vi.fn().mockReturnValue(true),
       updateMessageStatus: vi.fn(),
       setPolling: vi.fn(),
       setSending: vi.fn(),
