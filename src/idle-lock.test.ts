@@ -228,13 +228,123 @@ describe('startIdleLock / stopIdleLock', () => {
     startIdleLock();
     stopIdleLock();
 
-    // Should remove listeners for mousedown, keydown, touchstart, scroll
+    // Should remove listeners for mousedown, keydown, touchstart, scroll, visibilitychange
     const removedEvents = removeSpy.mock.calls.map((c) => c[0]);
     expect(removedEvents).toContain('mousedown');
     expect(removedEvents).toContain('keydown');
     expect(removedEvents).toContain('touchstart');
     expect(removedEvents).toContain('scroll');
+    expect(removedEvents).toContain('visibilitychange');
 
     removeSpy.mockRestore();
+  });
+
+  it('locks immediately when tab regains focus after timeout elapsed', async () => {
+    const { lockWallet } = await import('./wallet.ts');
+    const { showToast } = await import('./toast.ts');
+
+    startIdleLock();
+
+    // Simulate time passing while tab is hidden (advance past timeout)
+    vi.advanceTimersByTime(16 * 60 * 1000);
+
+    // Clear lock calls from the timer firing
+    vi.mocked(lockWallet).mockClear();
+    vi.mocked(showToast).mockClear();
+
+    // Re-start to test visibility path independently
+    startIdleLock();
+
+    // Advance past timeout without any activity
+    vi.advanceTimersByTime(16 * 60 * 1000);
+    vi.mocked(lockWallet).mockClear();
+    vi.mocked(showToast).mockClear();
+
+    // Simulate the system clock having advanced (Date.now moves forward)
+    // but we need to test the visibility handler specifically
+    // Reset and use a fresh start
+    stopIdleLock();
+    startIdleLock();
+
+    // Move time forward past the timeout
+    const now = Date.now();
+    vi.setSystemTime(now + 16 * 60 * 1000);
+
+    // Simulate visibilitychange to 'visible'
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      writable: true,
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(lockWallet).toHaveBeenCalled();
+    expect(showToast).toHaveBeenCalledWith(
+      'Wallet locked due to inactivity',
+      'info'
+    );
+  });
+
+  it('does not lock on visibilitychange if timeout has not elapsed', async () => {
+    const { lockWallet } = await import('./wallet.ts');
+
+    startIdleLock();
+
+    // Move time forward but not past the timeout
+    const now = Date.now();
+    vi.setSystemTime(now + 5 * 60 * 1000);
+
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      writable: true,
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(lockWallet).not.toHaveBeenCalled();
+  });
+
+  it('does not lock on visibilitychange when document is hidden', async () => {
+    const { lockWallet } = await import('./wallet.ts');
+
+    startIdleLock();
+
+    const now = Date.now();
+    vi.setSystemTime(now + 16 * 60 * 1000);
+
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'hidden',
+      writable: true,
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(lockWallet).not.toHaveBeenCalled();
+  });
+
+  it('user activity resets visibility check baseline', async () => {
+    const { lockWallet } = await import('./wallet.ts');
+
+    startIdleLock();
+
+    // Advance 10 minutes
+    const now = Date.now();
+    vi.setSystemTime(now + 10 * 60 * 1000);
+
+    // User activity resets lastActivity
+    document.dispatchEvent(new Event('keydown'));
+
+    // Advance another 10 minutes from activity (total 20 from start, but 10 from activity)
+    vi.setSystemTime(now + 20 * 60 * 1000);
+
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      writable: true,
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    // Should NOT lock: only 10 min since last activity, timeout is 15 min
+    expect(lockWallet).not.toHaveBeenCalled();
   });
 });
