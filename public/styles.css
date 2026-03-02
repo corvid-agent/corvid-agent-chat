@@ -179,6 +179,7 @@ html, body {
     font-family: inherit;
 }
 .icon-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+#btn-settings { font-size: 1.4rem; }
 
 /* ── Terminal / Chat area ── */
 .terminal {
