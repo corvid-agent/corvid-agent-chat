@@ -221,7 +221,7 @@ html, body {
 
 /* Transaction explorer link */
 .msg__txlink {
-    font-size: 0.875rem; color: var(--text-tertiary);
+    font-size: 1.1rem; color: var(--text-tertiary);
     text-decoration: none; margin-left: 0.25rem;
     transition: color 0.15s;
 }
