@@ -677,7 +677,7 @@ html, body {
     color: var(--text-secondary);
     border-radius: var(--radius-sm);
     width: 32px; height: 32px;
-    font-size: 0.75rem;
+    font-size: 1rem;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: border-color 0.15s, color 0.15s;
