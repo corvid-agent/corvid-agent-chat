@@ -21,6 +21,8 @@ const ACTIVITY_EVENTS: (keyof DocumentEventMap)[] = [
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let boundReset: (() => void) | null = null;
+let lastActivity: number = Date.now();
+let boundVisibility: (() => void) | null = null;
 
 /**
  * Get the configured timeout in ms (default 15 min)
@@ -55,12 +57,25 @@ export function startIdleLock(): void {
   const timeout = getIdleTimeout();
   if (timeout <= 0) return;
 
-  boundReset = () => resetTimer(timeout);
+  boundReset = () => {
+    lastActivity = Date.now();
+    resetTimer(timeout);
+  };
+
+  boundVisibility = () => {
+    if (document.visibilityState !== 'visible') return;
+    const elapsed = Date.now() - lastActivity;
+    if (elapsed >= timeout) {
+      triggerLock();
+    }
+  };
 
   for (const event of ACTIVITY_EVENTS) {
     document.addEventListener(event, boundReset, { passive: true });
   }
+  document.addEventListener('visibilitychange', boundVisibility);
 
+  lastActivity = Date.now();
   resetTimer(timeout);
 }
 
@@ -78,18 +93,24 @@ export function stopIdleLock(): void {
     }
     boundReset = null;
   }
+  if (boundVisibility) {
+    document.removeEventListener('visibilitychange', boundVisibility);
+    boundVisibility = null;
+  }
+}
+
+function triggerLock(): void {
+  const state = store.getState();
+  if (!state.wallet.unlocked) return;
+
+  stopIdleLock();
+  messaging.destroy();
+  lockWallet();
+  store.lockWallet();
+  showToast('Wallet locked due to inactivity', 'info');
 }
 
 function resetTimer(timeout: number): void {
   if (timer) clearTimeout(timer);
-  timer = setTimeout(() => {
-    // Only lock if wallet is actually unlocked
-    const state = store.getState();
-    if (!state.wallet.unlocked) return;
-
-    messaging.destroy();
-    lockWallet();
-    store.lockWallet();
-    showToast('Wallet locked due to inactivity', 'info');
-  }, timeout);
+  timer = setTimeout(() => triggerLock(), timeout);
 }
