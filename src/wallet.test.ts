@@ -2,7 +2,7 @@
  * Tests for wallet management: encryption, decryption, storage, and lifecycle
  * Covers the critical security path: PBKDF2 key derivation + AES-GCM encrypt/decrypt
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { bufferToBase64, base64ToBuffer } from './utils.ts';
 import type { StoredWallet } from './types.ts';
@@ -276,6 +276,184 @@ describe('wallet localStorage simulation', () => {
     // Delete
     removeItem(STORAGE_KEY);
     expect(getItem(STORAGE_KEY)).toBeNull();
+  });
+});
+
+// ── Module-level tests (actual wallet.ts exports with mocked algosdk) ──
+
+// Mock algosdk dependency so we can test the real module exports
+vi.mock('@corvidlabs/ts-algochat', () => ({
+  createRandomChatAccount: vi.fn(() => ({
+    account: { address: 'MOCK_ADDR_RANDOM', signingKey: new Uint8Array(32) },
+    mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+  })),
+  createChatAccountFromMnemonic: vi.fn((mnemonic: string) => {
+    if (mnemonic === 'invalid') throw new Error('Invalid mnemonic');
+    return { address: `MOCK_ADDR_${mnemonic.slice(0, 8).toUpperCase()}`, signingKey: new Uint8Array(32) };
+  }),
+}));
+
+// Stub localStorage for the module-level tests
+const walletStorage = new Map<string, string>();
+vi.stubGlobal('localStorage', {
+  getItem: vi.fn((key: string) => walletStorage.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => walletStorage.set(key, value)),
+  removeItem: vi.fn((key: string) => walletStorage.delete(key)),
+  clear: vi.fn(() => walletStorage.clear()),
+  get length() { return walletStorage.size; },
+  key: vi.fn((_index: number) => null),
+});
+
+// Import after mocks
+import {
+  getAccount,
+  lockWallet as lockWalletFn,
+  hasStoredWallet,
+  getStoredWallet,
+  deleteWallet,
+  createWallet,
+  importWallet,
+  unlockWallet,
+  exportMnemonic,
+} from './wallet.ts';
+
+describe('wallet module: account state management', () => {
+  beforeEach(() => {
+    walletStorage.clear();
+    lockWalletFn(); // ensure clean state
+  });
+
+  it('getAccount returns null when no wallet is unlocked', () => {
+    expect(getAccount()).toBeNull();
+  });
+
+  it('lockWallet clears the current account', async () => {
+    await createWallet('password123');
+    expect(getAccount()).not.toBeNull();
+
+    lockWalletFn();
+    expect(getAccount()).toBeNull();
+  });
+});
+
+describe('wallet module: localStorage operations', () => {
+  beforeEach(() => {
+    walletStorage.clear();
+    lockWalletFn();
+  });
+
+  it('hasStoredWallet returns false when no wallet stored', () => {
+    expect(hasStoredWallet()).toBe(false);
+  });
+
+  it('hasStoredWallet returns true after creating a wallet', async () => {
+    await createWallet('pass');
+    expect(hasStoredWallet()).toBe(true);
+  });
+
+  it('getStoredWallet returns null when no wallet stored', () => {
+    expect(getStoredWallet()).toBeNull();
+  });
+
+  it('getStoredWallet returns null for corrupted JSON', () => {
+    walletStorage.set('corvid-wallet', '{not valid json!!!');
+    expect(getStoredWallet()).toBeNull();
+  });
+
+  it('getStoredWallet returns parsed StoredWallet after creation', async () => {
+    await createWallet('mypass');
+    const stored = getStoredWallet();
+    expect(stored).not.toBeNull();
+    expect(stored!.address).toBe('MOCK_ADDR_RANDOM');
+    expect(stored!.encryptedMnemonic).toBeTruthy();
+    expect(stored!.iv).toBeTruthy();
+    expect(stored!.salt).toBeTruthy();
+  });
+
+  it('deleteWallet removes stored data and clears account', async () => {
+    await createWallet('pass');
+    expect(hasStoredWallet()).toBe(true);
+    expect(getAccount()).not.toBeNull();
+
+    deleteWallet();
+    expect(hasStoredWallet()).toBe(false);
+    expect(getAccount()).toBeNull();
+  });
+});
+
+describe('wallet module: create and unlock lifecycle', () => {
+  beforeEach(() => {
+    walletStorage.clear();
+    lockWalletFn();
+  });
+
+  it('createWallet stores encrypted wallet and sets account', async () => {
+    const account = await createWallet('secure-pass');
+    expect(account.address).toBe('MOCK_ADDR_RANDOM');
+    expect(getAccount()).toBe(account);
+    expect(hasStoredWallet()).toBe(true);
+  });
+
+  it('importWallet stores and sets account from mnemonic', async () => {
+    const account = await importWallet('test words here', 'pass');
+    expect(account.address).toBe('MOCK_ADDR_TEST WOR');
+    expect(getAccount()).toBe(account);
+    expect(hasStoredWallet()).toBe(true);
+  });
+
+  it('importWallet trims whitespace from mnemonic', async () => {
+    const account = await importWallet('  test words  ', 'pass');
+    expect(account.address).toBe('MOCK_ADDR_TEST WOR');
+  });
+
+  it('importWallet throws for invalid mnemonic', async () => {
+    await expect(importWallet('invalid', 'pass')).rejects.toThrow('Invalid mnemonic');
+  });
+
+  it('unlockWallet throws when no wallet is stored', async () => {
+    await expect(unlockWallet('pass')).rejects.toThrow('No wallet stored');
+  });
+
+  it('unlockWallet decrypts and sets account with correct password', async () => {
+    await createWallet('my-password');
+    lockWalletFn();
+    expect(getAccount()).toBeNull();
+
+    const account = await unlockWallet('my-password');
+    expect(account).not.toBeNull();
+    expect(getAccount()).toBe(account);
+  });
+
+  it('unlockWallet throws with wrong password', async () => {
+    await createWallet('correct-password');
+    lockWalletFn();
+
+    await expect(unlockWallet('wrong-password')).rejects.toThrow('Invalid password');
+  });
+});
+
+describe('wallet module: exportMnemonic', () => {
+  beforeEach(() => {
+    walletStorage.clear();
+    lockWalletFn();
+  });
+
+  it('throws when no wallet is stored', async () => {
+    await expect(exportMnemonic('pass')).rejects.toThrow('No wallet stored');
+  });
+
+  it('returns decrypted mnemonic with correct password', async () => {
+    await createWallet('export-pass');
+    // The mocked createRandomChatAccount returns a known mnemonic
+    const mnemonic = await exportMnemonic('export-pass');
+    expect(mnemonic).toBe(
+      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+    );
+  });
+
+  it('throws with wrong password', async () => {
+    await createWallet('right-pass');
+    await expect(exportMnemonic('wrong-pass')).rejects.toThrow('Invalid password');
   });
 });
 
