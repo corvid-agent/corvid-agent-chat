@@ -1,17 +1,23 @@
 /**
- * Chat view - Main messaging interface
+ * Chat view - Main messaging interface orchestrator
+ *
+ * Delegates to extracted modules:
+ * - chat-search.ts — search bar UI, highlighting, navigation
+ * - chat-attachments.ts — file handling, drag-and-drop, preview
+ * - chat-messages.ts — message rendering, date separators, status updates
  */
 import { store } from '../store.ts';
 import { messaging } from '../messaging.ts';
 import { getAccount } from '../wallet.ts';
-import { renderMarkdown } from '../markdown.ts';
 import { showToast } from '../toast.ts';
-import type { Attachment, ChatMessage } from '../types.ts';
-import { escapeHtml, shortenAddress, formatTime, formatDateLabel } from '../utils.ts';
+import type { ChatMessage } from '../types.ts';
+import { escapeHtml, shortenAddress } from '../utils.ts';
 import { saveMessage, updateMessageStatus as dbUpdateStatus, loadMessages } from '../db.ts';
 import { getDeviceName } from '../device-name.ts';
-import { processFile, createImagePreview, createFileDownload, formatFileSize, isAcceptedType } from '../file-handler.ts';
 import { canSend, recordSend, getRemainingCooldown } from '../rate-limiter.ts';
+import { bindSearchEvents, openSearch, closeSearch, isSearchOpen, resetSearchState } from './chat-search.ts';
+import { bindAttachmentEvents, getPendingAttachment, getPendingCaption, clearPendingAttachment, resetAttachmentState } from './chat-attachments.ts';
+import { appendMessage, updateMessageEl, showThinking, setOutputEl, resetMessageState } from './chat-messages.ts';
 
 /** Detect macOS for shortcut labels */
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -19,30 +25,12 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(na
 const STATUS_CHECK_INTERVAL_MS = 30_000;
 /** Max height for auto-resizing textarea (px) */
 const INPUT_MAX_HEIGHT_PX = 200;
-/** Duration to show copy confirmation before reverting (ms) */
-const COPY_FEEDBACK_MS = 1_500;
-/** Debounce delay for search input (ms) */
-const SEARCH_DEBOUNCE_MS = 150;
 
 let outputEl: HTMLElement | null = null;
 let inputEl: HTMLTextAreaElement | null = null;
 let unsubMessages: (() => void) | null = null;
 let unsubPollErrors: (() => void) | null = null;
 let chatCleanupFn: (() => void) | null = null;
-
-/* ── Search state ── */
-let searchOpen = false;
-let searchQuery = '';
-let searchMatches: HTMLElement[] = [];
-let searchCurrentIdx = -1;
-let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-/* ── Date separator tracking ── */
-let lastMessageDate: string | null = null;
-
-/* ── Pending attachment state ── */
-let pendingAttachment: Attachment | null = null;
-let pendingCaption: string | null = null;
 
 export function renderChat(): string {
   const state = store.getState();
@@ -150,18 +138,9 @@ export function bindChatEvents(): void {
   outputEl = document.getElementById('chat-output');
   inputEl = document.getElementById('chat-input') as HTMLTextAreaElement;
   const btnSend = document.getElementById('btn-send');
-  const btnAttach = document.getElementById('btn-attach');
-  const fileInput = document.getElementById('file-input') as HTMLInputElement | null;
-  const attachmentPreview = document.getElementById('attachment-preview');
-  const attachmentPreviewInfo = document.getElementById('attachment-preview-info');
-  const attachmentPreviewCancel = document.getElementById('attachment-preview-cancel');
   const connectionStatus = document.getElementById('connection-status');
   const connectionText = document.getElementById('connection-text');
   const pollDot = document.getElementById('poll-dot');
-
-  // Reset pending attachment state
-  pendingAttachment = null;
-  pendingCaption = null;
 
   // Initialize messaging service
   const account = getAccount();
@@ -174,6 +153,22 @@ export function bindChatEvents(): void {
   }
 
   messaging.initialize(account, connection);
+
+  // Set output element for message rendering module
+  setOutputEl(outputEl);
+
+  // Update send button state
+  function updateSendButton() {
+    if (!inputEl || !btnSend) return;
+    const hasContent = inputEl.value.trim().length > 0 || getPendingAttachment() !== null;
+    if (hasContent) {
+      btnSend.removeAttribute('disabled');
+      btnSend.setAttribute('aria-disabled', 'false');
+    } else {
+      btnSend.setAttribute('disabled', 'true');
+      btnSend.setAttribute('aria-disabled', 'true');
+    }
+  }
 
   // Load persisted message history from IndexedDB
   loadMessages(connection.address).then((history) => {
@@ -199,7 +194,6 @@ export function bindChatEvents(): void {
   // Subscribe to poll errors for connection status indicator
   unsubPollErrors = messaging.onPollError((error) => {
     if (error) {
-      // Show error state in connection bar
       if (pollDot) {
         pollDot.className = 'status-dot status-dot--red';
       }
@@ -208,7 +202,6 @@ export function bindChatEvents(): void {
         connectionText.textContent = `Connection lost (retry ${retries}...)`;
       }
     } else {
-      // Recovered
       if (pollDot) {
         pollDot.className = 'status-dot status-dot--green';
       }
@@ -235,7 +228,6 @@ export function bindChatEvents(): void {
         pollDot.className = `status-dot ${online ? 'status-dot--green' : 'status-dot--amber'}`;
       }
 
-      // Update balance
       const balance = await messaging.getBalance();
       store.setBalance(balance);
     } catch {
@@ -246,88 +238,13 @@ export function bindChatEvents(): void {
   updateStatus();
   const statusTimer = setInterval(updateStatus, STATUS_CHECK_INTERVAL_MS);
 
-  // ── Attachment handling ──
+  // ── Bind extracted modules ──
 
-  function showAttachmentPreview(caption: string) {
-    if (attachmentPreview) attachmentPreview.style.display = '';
-    if (attachmentPreviewInfo) attachmentPreviewInfo.textContent = caption;
-    updateSendButton();
-  }
+  const cleanupAttachments = bindAttachmentEvents(outputEl, updateSendButton);
+  const cleanupSearch = bindSearchEvents(outputEl);
 
-  function clearPendingAttachment() {
-    pendingAttachment = null;
-    pendingCaption = null;
-    if (attachmentPreview) attachmentPreview.style.display = 'none';
-    if (attachmentPreviewInfo) attachmentPreviewInfo.textContent = '';
-    if (fileInput) fileInput.value = '';
-    updateSendButton();
-  }
+  // ── Rate limit cooldown ──
 
-  async function handleFileSelection(file: File) {
-    try {
-      const processed = await processFile(file);
-      pendingAttachment = processed.attachment;
-      pendingCaption = processed.caption;
-      showAttachmentPreview(
-        `${pendingAttachment.type === 'image' ? 'Image' : 'File'}: ${file.name} (${formatFileSize(file.size)})`
-      );
-    } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : 'Failed to process file',
-        'error'
-      );
-      clearPendingAttachment();
-    }
-  }
-
-  // Attach button click
-  btnAttach?.addEventListener('click', () => {
-    fileInput?.click();
-  });
-
-  // File input change
-  fileInput?.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    if (file) handleFileSelection(file);
-  });
-
-  // Cancel attachment
-  attachmentPreviewCancel?.addEventListener('click', () => {
-    clearPendingAttachment();
-  });
-
-  // Drag and drop on the chat output area
-  const terminalEl = outputEl?.parentElement;
-  if (terminalEl) {
-    terminalEl.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      terminalEl.classList.add('terminal--dragover');
-    });
-
-    terminalEl.addEventListener('dragleave', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      terminalEl.classList.remove('terminal--dragover');
-    });
-
-    terminalEl.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      terminalEl.classList.remove('terminal--dragover');
-
-      const file = e.dataTransfer?.files[0];
-      if (file) {
-        if (isAcceptedType(file.type)) {
-          handleFileSelection(file);
-        } else {
-          showToast(`File type "${file.type || 'unknown'}" is not supported`, 'error');
-        }
-      }
-    });
-  }
-
-  // Rate limit cooldown timer — re-enables the send button after cooldown
   let rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
 
   function applySendCooldown() {
@@ -344,12 +261,13 @@ export function bindChatEvents(): void {
     }
   }
 
-  // Send message
+  // ── Send message ──
+
   const sendMessage = async () => {
     if (!inputEl) return;
     const content = inputEl.value.trim();
-    const attachment = pendingAttachment;
-    const caption = pendingCaption;
+    const attachment = getPendingAttachment();
+    const caption = getPendingCaption();
 
     // Need either text content or an attachment
     if (!content && !attachment) return;
@@ -379,7 +297,6 @@ export function bindChatEvents(): void {
 
     store.addMessage(outMsg);
     appendMessage(outMsg);
-    // Persist optimistic message
     saveMessage(outMsg, connection.address);
 
     // Record send for rate limiting and apply cooldown
@@ -387,7 +304,7 @@ export function bindChatEvents(): void {
 
     inputEl.value = '';
     inputEl.style.height = 'auto';
-    clearPendingAttachment();
+    clearPendingAttachment(updateSendButton);
     updateSendButton();
     applySendCooldown();
 
@@ -398,10 +315,8 @@ export function bindChatEvents(): void {
       const txid = await messaging.sendMessage(messageContent, attachment ?? undefined);
       store.updateMessageStatus(tempId, 'confirmed', txid);
       updateMessageEl(tempId, 'confirmed');
-      // Update persisted status
       dbUpdateStatus(tempId, 'confirmed', txid);
 
-      // Show waiting indicator
       showThinking();
     } catch (err) {
       store.updateMessageStatus(tempId, 'failed');
@@ -409,7 +324,7 @@ export function bindChatEvents(): void {
       dbUpdateStatus(tempId, 'failed');
       showToast(
         `Send failed: ${err instanceof Error ? err.message : 'unknown error'}`,
-        'error'
+        'error',
       );
     } finally {
       store.setSending(false);
@@ -417,10 +332,10 @@ export function bindChatEvents(): void {
     }
   };
 
-  // Input handling
+  // ── Input handling ──
+
   inputEl?.addEventListener('input', () => {
     if (!inputEl) return;
-    // Auto-resize
     inputEl.style.height = 'auto';
     inputEl.style.height = `${Math.min(inputEl.scrollHeight, INPUT_MAX_HEIGHT_PX)}px`;
     updateSendButton();
@@ -467,245 +382,11 @@ export function bindChatEvents(): void {
       }
     });
 
-  // Update send button state
-  function updateSendButton() {
-    if (!inputEl || !btnSend) return;
-    const hasContent = inputEl.value.trim().length > 0 || pendingAttachment !== null;
-    if (hasContent) {
-      btnSend.removeAttribute('disabled');
-      btnSend.setAttribute('aria-disabled', 'false');
-    } else {
-      btnSend.setAttribute('disabled', 'true');
-      btnSend.setAttribute('aria-disabled', 'true');
-    }
-  }
-
-  // ── Search feature ──
-  const searchBar = document.getElementById('search-bar');
-  const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
-  const searchCount = document.getElementById('search-count');
-  const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null;
-  const searchNext = document.getElementById('search-next') as HTMLButtonElement | null;
-  const searchClose = document.getElementById('search-close');
-  const btnSearch = document.getElementById('btn-search');
-
-  function openSearch() {
-    if (!searchBar || !searchInput) return;
-    searchOpen = true;
-    searchBar.style.display = '';
-    btnSearch?.setAttribute('aria-expanded', 'true');
-    searchInput.value = searchQuery;
-    searchInput.focus();
-    if (searchQuery) {
-      executeSearch(searchQuery);
-    }
-  }
-
-  function closeSearch() {
-    if (!searchBar) return;
-    searchOpen = false;
-    searchBar.style.display = 'none';
-    btnSearch?.setAttribute('aria-expanded', 'false');
-    clearSearchHighlights();
-    searchQuery = '';
-    searchMatches = [];
-    searchCurrentIdx = -1;
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = null;
-    }
-    if (searchCount) searchCount.textContent = '';
-    btnSearch?.focus();
-  }
-
-  function clearSearchHighlights() {
-    // Remove all search highlights from messages
-    if (!outputEl) return;
-    const highlighted = outputEl.querySelectorAll('.msg--search-match');
-    highlighted.forEach((el) => el.classList.remove('msg--search-match'));
-    const active = outputEl.querySelectorAll('.msg--search-active');
-    active.forEach((el) => el.classList.remove('msg--search-active'));
-    // Remove inline highlight spans
-    const marks = outputEl.querySelectorAll('mark.search-highlight');
-    marks.forEach((mark) => {
-      const parent = mark.parentNode;
-      if (parent) {
-        parent.replaceChild(document.createTextNode(mark.textContent ?? ''), mark);
-        parent.normalize();
-      }
-    });
-  }
-
-  function highlightTextInNode(node: Node, regex: RegExp): boolean {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent ?? '';
-      const match = regex.exec(text);
-      if (!match) return false;
-
-      const span = document.createElement('span');
-      const before = text.substring(0, match.index);
-      const matched = text.substring(match.index, match.index + match[0].length);
-      const after = text.substring(match.index + match[0].length);
-
-      if (before) span.appendChild(document.createTextNode(before));
-      const mark = document.createElement('mark');
-      mark.className = 'search-highlight';
-      mark.textContent = matched;
-      span.appendChild(mark);
-      if (after) span.appendChild(document.createTextNode(after));
-
-      node.parentNode?.replaceChild(span, node);
-
-      // Recursively highlight the rest (the after text node)
-      if (after) {
-        const lastChild = span.lastChild;
-        if (lastChild) highlightTextInNode(lastChild, regex);
-      }
-      return true;
-    }
-
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      // Skip buttons, time stamps, prompts, and already-highlighted marks
-      if (
-        el.tagName === 'BUTTON' ||
-        el.tagName === 'MARK' ||
-        el.classList.contains('msg__time') ||
-        el.classList.contains('msg__prompt') ||
-        el.classList.contains('msg__copy') ||
-        el.classList.contains('msg__status') ||
-        el.classList.contains('msg__retry')
-      ) {
-        return false;
-      }
-      let found = false;
-      // Iterate over a snapshot of child nodes (highlighting mutates the DOM)
-      const children = Array.from(node.childNodes);
-      for (const child of children) {
-        if (highlightTextInNode(child, regex)) found = true;
-      }
-      return found;
-    }
-
-    return false;
-  }
-
-  function executeSearch(query: string) {
-    clearSearchHighlights();
-    searchMatches = [];
-    searchCurrentIdx = -1;
-
-    if (!query || !outputEl) {
-      updateSearchNav();
-      return;
-    }
-
-    // Escape regex special chars and compile once
-    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const matchRegex = new RegExp(escaped, 'i');
-
-    // Search through the message store for matching content
-    const messages = store.getState().chat.messages;
-    const matchingIds = new Set<string>();
-    for (const msg of messages) {
-      if (matchRegex.test(msg.content)) {
-        matchingIds.add(msg.id);
-      }
-    }
-
-    // Highlight matching message elements
-    const msgEls = outputEl.querySelectorAll('.msg');
-    msgEls.forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      const msgId = htmlEl.id.replace(/^msg-/, '');
-      if (matchingIds.has(msgId)) {
-        htmlEl.classList.add('msg--search-match');
-        searchMatches.push(htmlEl);
-        // Highlight matching text within the .msg__text span
-        const textSpan = htmlEl.querySelector('.msg__text');
-        if (textSpan) {
-          highlightTextInNode(textSpan, new RegExp(escaped, 'gi'));
-        }
-      }
-    });
-
-    if (searchMatches.length > 0) {
-      searchCurrentIdx = 0;
-      searchMatches[0]!.classList.add('msg--search-active');
-      searchMatches[0]!.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    updateSearchNav();
-  }
-
-  function updateSearchNav() {
-    const total = searchMatches.length;
-    if (searchCount) {
-      if (!searchQuery) {
-        searchCount.textContent = '';
-      } else if (total === 0) {
-        searchCount.textContent = 'No matches';
-      } else {
-        searchCount.textContent = `${searchCurrentIdx + 1} of ${total} match${total !== 1 ? 'es' : ''}`;
-      }
-    }
-    if (searchPrev) searchPrev.disabled = total < 2;
-    if (searchNext) searchNext.disabled = total < 2;
-  }
-
-  function navigateSearch(direction: 'prev' | 'next') {
-    if (searchMatches.length === 0) return;
-    // Remove active class from current
-    searchMatches[searchCurrentIdx]?.classList.remove('msg--search-active');
-
-    if (direction === 'next') {
-      searchCurrentIdx = (searchCurrentIdx + 1) % searchMatches.length;
-    } else {
-      searchCurrentIdx = (searchCurrentIdx - 1 + searchMatches.length) % searchMatches.length;
-    }
-
-    searchMatches[searchCurrentIdx]!.classList.add('msg--search-active');
-    searchMatches[searchCurrentIdx]!.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    updateSearchNav();
-  }
-
-  btnSearch?.addEventListener('click', () => {
-    if (searchOpen) {
-      closeSearch();
-    } else {
-      openSearch();
-    }
-  });
-
-  searchInput?.addEventListener('input', () => {
-    searchQuery = searchInput.value;
-    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      executeSearch(searchQuery);
-    }, SEARCH_DEBOUNCE_MS);
-  });
-
-  searchInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeSearch();
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (e.shiftKey) {
-        navigateSearch('prev');
-      } else {
-        navigateSearch('next');
-      }
-    }
-  });
-
-  searchPrev?.addEventListener('click', () => navigateSearch('prev'));
-  searchNext?.addEventListener('click', () => navigateSearch('next'));
-  searchClose?.addEventListener('click', () => closeSearch());
-
   // ── Shortcuts help overlay ──
   const shortcutsOverlay = document.getElementById('shortcuts-overlay');
   const btnShortcuts = document.getElementById('btn-shortcuts');
   const shortcutsClose = document.getElementById('shortcuts-close');
+  const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
 
   let shortcutsTrapHandler: ((e: KeyboardEvent) => void) | null = null;
 
@@ -715,7 +396,6 @@ export function bindChatEvents(): void {
     btnShortcuts?.setAttribute('aria-expanded', 'true');
     shortcutsClose?.focus();
 
-    // Focus trap within the modal
     shortcutsTrapHandler = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const modal = shortcutsOverlay.querySelector('.modal') as HTMLElement;
@@ -756,21 +436,19 @@ export function bindChatEvents(): void {
 
   shortcutsClose?.addEventListener('click', closeShortcuts);
 
-  // Close on click outside the modal
   shortcutsOverlay?.addEventListener('click', (e) => {
     if (e.target === shortcutsOverlay) closeShortcuts();
   });
 
-  // Global keyboard shortcut: Ctrl/Cmd+F opens search
+  // Global keyboard shortcuts
   const handleGlobalKeydown = (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
       openSearch();
     }
-    if (e.key === 'Escape' && searchOpen) {
+    if (e.key === 'Escape' && isSearchOpen()) {
       closeSearch();
     }
-    // "?" key opens shortcuts help (when not typing in input/search)
     if (
       e.key === '?' &&
       !e.ctrlKey && !e.metaKey && !e.altKey &&
@@ -784,7 +462,6 @@ export function bindChatEvents(): void {
         closeShortcuts();
       }
     }
-    // Escape closes shortcuts overlay
     if (e.key === 'Escape' && shortcutsOverlay?.style.display !== 'none') {
       closeShortcuts();
     }
@@ -800,142 +477,10 @@ export function bindChatEvents(): void {
       document.removeEventListener('keydown', shortcutsTrapHandler);
       shortcutsTrapHandler = null;
     }
-    closeSearch();
+    cleanupSearch();
     closeShortcuts();
-    clearPendingAttachment();
+    cleanupAttachments();
   };
-}
-
-function appendMessage(msg: ChatMessage): void {
-  if (!outputEl) return;
-
-  // Remove thinking indicator if we got a response
-  if (msg.direction === 'received') {
-    hideThinking();
-  }
-
-  // Insert date separator if the day changed
-  const msgDate = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
-  const dayKey = `${msgDate.getFullYear()}-${msgDate.getMonth()}-${msgDate.getDate()}`;
-  if (dayKey !== lastMessageDate) {
-    lastMessageDate = dayKey;
-    const sep = document.createElement('div');
-    sep.className = 'divider date-separator';
-    sep.textContent = formatDateLabel(msgDate);
-    outputEl.appendChild(sep);
-  }
-
-  const div = document.createElement('div');
-  div.className = `msg msg--${msg.direction === 'sent' ? 'outbound' : 'inbound'}`;
-  div.id = `msg-${msg.id}`;
-
-  let prompt: string;
-  if (msg.direction === 'received') {
-    prompt = '[agent] ';
-  } else if (msg.deviceName) {
-    prompt = `[you@${escapeHtml(msg.deviceName)}] `;
-  } else if (getDeviceName()) {
-    prompt = `[you@${escapeHtml(getDeviceName()!)}] `;
-  } else {
-    prompt = '[you] ';
-  }
-  const statusBadge = msg.status === 'sending'
-    ? ' <span class="msg__status" data-status="sending">(sending...)</span>'
-    : msg.status === 'failed'
-      ? ' <span class="msg__status" data-status="failed">(failed) </span><button class="msg__retry" title="Retry">retry</button>'
-      : '';
-
-  const timeStr = formatTime(msg.timestamp);
-  const txLink = msg.txid
-    ? ` <a class="msg__txlink" href="https://allo.info/tx/${msg.txid}" target="_blank" rel="noopener" title="View on explorer">&#x26d3;</a>`
-    : '';
-
-  div.innerHTML = `
-    <span class="msg__time">${timeStr}</span>
-    <span class="msg__prompt">${prompt}</span>
-    <span class="msg__text">${renderMarkdown(msg.content)}${statusBadge}${txLink}</span>
-    <button class="msg__copy" title="Copy to clipboard">&#x2398;</button>
-  `;
-
-  // Append attachment display if present
-  if (msg.attachment) {
-    const textSpan = div.querySelector('.msg__text');
-    if (textSpan) {
-      const attachEl = msg.attachment.type === 'image'
-        ? createImagePreview(msg.attachment)
-        : createFileDownload(msg.attachment);
-      textSpan.appendChild(attachEl);
-    }
-  }
-
-  // Copy button
-  const copyBtn = div.querySelector('.msg__copy');
-  copyBtn?.addEventListener('click', () => {
-    navigator.clipboard.writeText(msg.content).then(() => {
-      if (copyBtn) copyBtn.textContent = '\u2713';
-      setTimeout(() => {
-        if (copyBtn) copyBtn.textContent = '\u2398';
-      }, COPY_FEEDBACK_MS);
-    });
-  });
-
-  // Retry button (for failed messages)
-  const retryBtn = div.querySelector('.msg__retry');
-  retryBtn?.addEventListener('click', async () => {
-    if (!msg.content) return;
-    try {
-      const txid = await messaging.sendMessage(msg.content, msg.attachment);
-      store.updateMessageStatus(msg.id, 'confirmed', txid);
-      updateMessageEl(msg.id, 'confirmed');
-      dbUpdateStatus(msg.id, 'confirmed', txid);
-      showToast('Message resent', 'success');
-    } catch (err) {
-      showToast(
-        `Retry failed: ${err instanceof Error ? err.message : 'unknown error'}`,
-        'error'
-      );
-    }
-  });
-
-  outputEl.appendChild(div);
-  outputEl.scrollTop = outputEl.scrollHeight;
-}
-
-function updateMessageEl(id: string, status: ChatMessage['status']): void {
-  const el = document.getElementById(`msg-${id}`);
-  if (!el) return;
-
-  const statusSpan = el.querySelector('.msg__status');
-  if (statusSpan) {
-    if (status === 'confirmed') {
-      statusSpan.remove();
-    } else if (status === 'failed') {
-      statusSpan.setAttribute('data-status', 'failed');
-      statusSpan.textContent = '(failed)';
-    }
-  }
-}
-
-function showThinking(): void {
-  if (!outputEl) return;
-  // Remove existing thinking indicator
-  hideThinking();
-
-  const div = document.createElement('div');
-  div.className = 'thinking';
-  div.id = 'thinking-indicator';
-  div.setAttribute('role', 'status');
-  div.setAttribute('aria-live', 'polite');
-  div.innerHTML = `
-    <span class="thinking__dot" aria-hidden="true"></span>
-    <span>Agent is thinking...</span>
-  `;
-  outputEl.appendChild(div);
-  outputEl.scrollTop = outputEl.scrollHeight;
-}
-
-function hideThinking(): void {
-  document.getElementById('thinking-indicator')?.remove();
 }
 
 export function cleanupChat(): void {
@@ -948,9 +493,9 @@ export function cleanupChat(): void {
   chatCleanupFn?.();
   chatCleanupFn = null;
 
-  pendingAttachment = null;
-  pendingCaption = null;
-  lastMessageDate = null;
+  resetAttachmentState();
+  resetSearchState();
+  resetMessageState();
   outputEl = null;
   inputEl = null;
 }
