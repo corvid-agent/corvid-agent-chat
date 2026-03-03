@@ -2,7 +2,7 @@
  * Tests for device name persistence and message envelope handling.
  * Covers: name validation, envelope wrapping/parsing, error paths, edge cases.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { stubLocalStorage } from './test-utils.ts';
 import type { Attachment } from './types.ts';
 
