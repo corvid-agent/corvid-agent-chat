@@ -6,7 +6,7 @@
 let container: HTMLElement | null = null;
 
 function getContainer(): HTMLElement {
-  if (!container) {
+  if (!container || !container.isConnected) {
     container = document.createElement('div');
     container.className = 'toast-container';
     container.setAttribute('role', 'status');
